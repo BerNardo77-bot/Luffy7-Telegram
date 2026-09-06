@@ -66,9 +66,18 @@ export async function downloadToFile(url, destPath, {
   const body = res.body
   if (!body) throw new Error('Sin body en la descarga')
 
-  // node-fetch en Termux da PassThrough (Node stream), no Web ReadableStream
-  const nodeStream =
-    typeof body.getReader === 'function' ? Readable.fromWeb(body) : body
+  // Preferir siempre stream Node (.pipe). node-fetch da PassThrough;
+  // en Termux a veces tiene getReader y Readable.fromWeb explota.
+  let nodeStream
+  if (typeof body.pipe === 'function') {
+    nodeStream = body
+  } else if (typeof body.getReader === 'function') {
+    nodeStream = Readable.fromWeb(body)
+  } else if (typeof body[Symbol.asyncIterator] === 'function') {
+    nodeStream = Readable.from(body)
+  } else {
+    throw new Error('Body de descarga no reconocido')
+  }
 
   let written = 0
   const out = createWriteStream(destPath)
