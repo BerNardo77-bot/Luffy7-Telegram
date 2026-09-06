@@ -66,8 +66,11 @@ export async function downloadToFile(url, destPath, {
   const body = res.body
   if (!body) throw new Error('Sin body en la descarga')
 
+  // node-fetch en Termux da PassThrough (Node stream), no Web ReadableStream
+  const nodeStream =
+    typeof body.getReader === 'function' ? Readable.fromWeb(body) : body
+
   let written = 0
-  const nodeStream = Readable.fromWeb(body)
   const out = createWriteStream(destPath)
   nodeStream.on('data', (chunk) => {
     written += chunk.length
