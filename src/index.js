@@ -373,12 +373,19 @@ bot.command(['gelbooru', 'gbooru'], handleGelbooru)
 bot.command(['r34', 'rule34', 'rule'], handleR34)
 
 bot.catch((err) => console.error('Bot error', err))
-bot.start()
-console.log(
+
+console.log('Luffy7 Telegram v1.3.1 arrancando...')
+bot.start().then(() => {
+  console.log(
   'Luffy7 Telegram online | download<=',
   mb(MAX_DOWNLOAD),
   'MB | send<=',
   mb(MAX_SEND),
   'MB | localApi=',
   useLocalApi
-)
+  )
+  console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify ...')
+}).catch((e) => {
+  console.error('No arranco el bot:', e)
+  process.exit(1)
+})
