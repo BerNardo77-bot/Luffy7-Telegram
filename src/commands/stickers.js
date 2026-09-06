@@ -1,31 +1,69 @@
 import fs from 'fs'
-import sharp from 'sharp'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { InputFile } from 'grammy'
 import { downloadBuffer, tmpPath, safeUnlink } from '../api.js'
 
+const execFileAsync = promisify(execFile)
 const STICKER_SIZE = 512
 
-async function imageToWebpSticker(inputBuffer) {
-  return sharp(inputBuffer)
-    .rotate()
-    .resize(STICKER_SIZE, STICKER_SIZE, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 0 }
-    })
-    .webp({ quality: 90 })
-    .toBuffer()
+async function imageToWebpSticker(inputBuffer, outPath) {
+  const inPath = tmpPath(`${Date.now()}-sticker-in`)
+  fs.writeFileSync(inPath, inputBuffer)
+  try {
+    try {
+      const sharp = (await import('sharp')).default
+      const webp = await sharp(inputBuffer)
+        .rotate()
+        .resize(STICKER_SIZE, STICKER_SIZE, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        })
+        .webp({ quality: 90 })
+        .toBuffer()
+      fs.writeFileSync(outPath, webp)
+      return
+    } catch (e) {
+      console.error('[sticker] sharp no disponible, uso ffmpeg:', e?.message || e)
+    }
+
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-y',
+        '-i',
+        inPath,
+        '-vf',
+        'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000',
+        '-c:v',
+        'libwebp',
+        '-quality',
+        '90',
+        '-loop',
+        '0',
+        '-an',
+        outPath
+      ],
+      { timeout: 120000 }
+    )
+    if (!fs.existsSync(outPath) || !fs.statSync(outPath).size) {
+      throw new Error('ffmpeg no genero el webp')
+    }
+  } finally {
+    safeUnlink(inPath)
+  }
 }
 
 async function getPhotoFileId(ctx) {
-  // Reply to a photo
   const reply = ctx.message?.reply_to_message
   if (reply?.photo?.length) {
     return reply.photo[reply.photo.length - 1].file_id
   }
-  // Photo with caption /sticker
   if (ctx.message?.photo?.length) {
     return ctx.message.photo[ctx.message.photo.length - 1].file_id
   }
+  const doc = ctx.message?.reply_to_message?.document || ctx.message?.document
+  if (doc?.mime_type?.startsWith('image/')) return doc.file_id
   return null
 }
 
@@ -33,7 +71,7 @@ export async function handleSticker(ctx) {
   const fileId = await getPhotoFileId(ctx)
   if (!fileId) {
     return ctx.reply(
-      'Uso: responde a una foto con /sticker, o envía una foto con caption /sticker'
+      'Uso: responde a una foto con /sticker\nO envia una foto con caption /sticker'
     )
   }
 
@@ -45,17 +83,12 @@ export async function handleSticker(ctx) {
 
     const root = (process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/$/, '')
     const token = process.env.TELEGRAM_BOT_TOKEN
-    // Local Bot API uses /file/<token>/... or custom; cloud uses /file/bot<token>/
-    let fileUrl
-    if (process.env.TELEGRAM_API_ROOT) {
-      fileUrl = `${root}/file/bot${token}/${file.file_path}`
-    } else {
-      fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`
-    }
+    const fileUrl = process.env.TELEGRAM_API_ROOT
+      ? `${root}/file/bot${token}/${file.file_path}`
+      : `https://api.telegram.org/file/bot${token}/${file.file_path}`
 
     const buf = await downloadBuffer(fileUrl, 120000)
-    const webp = await imageToWebpSticker(buf)
-    fs.writeFileSync(out, webp)
+    await imageToWebpSticker(buf, out)
     await ctx.replyWithSticker(new InputFile(out, 'sticker.webp'))
     await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
   } catch (e) {
@@ -68,13 +101,12 @@ export async function handleSticker(ctx) {
   }
 }
 
-/** Solo procesa fotos cuyo caption empiece con /sticker */
 export async function handlePhotoCaption(ctx, next) {
   const caption = (ctx.message?.caption || '').trim()
-  if (!caption.toLowerCase().startsWith('/sticker') && !caption.toLowerCase().startsWith('/s ')) {
+  const low = caption.toLowerCase()
+  if (!low.startsWith('/sticker') && !low.startsWith('/s')) {
     return next()
   }
-  // /s solo como comando completo
   const cmd = caption.split(/\s+/)[0].toLowerCase().replace(/@\w+$/, '')
   if (cmd !== '/sticker' && cmd !== '/s') return next()
   return handleSticker(ctx)
