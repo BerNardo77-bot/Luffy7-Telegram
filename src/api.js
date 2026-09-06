@@ -47,6 +47,13 @@ function defaultDlHeaders(url) {
   return headers
 }
 
+function apiKeys() {
+  const { apiKey } = getConfig()
+  const keys = [apiKey]
+  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  return keys
+}
+
 /** Descarga a archivo en disco (no a RAM). Tope 2GB. */
 export async function downloadToFile(url, destPath, {
   timeout = 1_800_000,
@@ -153,9 +160,8 @@ export async function resolveYoutube(text) {
 }
 
 export async function getAudioLink(videoUrl, title) {
-  const { apiUrl, apiKey } = getConfig()
-  const keys = [apiKey]
-  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
   const urls = [videoUrl]
   const idMatch = String(videoUrl).match(/(?:youtu\.be\/|v=|shorts\/)([a-zA-Z0-9_-]{11})/)
   if (idMatch) {
@@ -180,9 +186,8 @@ export async function getAudioLink(videoUrl, title) {
 }
 
 export async function getVideoLink(videoUrl, title) {
-  const { apiUrl, apiKey } = getConfig()
-  const keys = [apiKey]
-  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
   const urls = [videoUrl]
   const idMatch = String(videoUrl).match(/(?:youtu\.be\/|v=|shorts\/)([a-zA-Z0-9_-]{11})/)
   if (idMatch) {
@@ -229,9 +234,8 @@ function pickXvideosCandidates(resultado) {
 }
 
 export async function getXvideosDownload(videoUrl) {
-  const { apiUrl, apiKey } = getConfig()
-  const keys = [apiKey]
-  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
   let last = 'Sin resultado'
   for (const key of keys) {
     try {
@@ -249,9 +253,8 @@ export async function getXvideosDownload(videoUrl) {
 }
 
 export async function searchXvideos(query) {
-  const { apiUrl, apiKey } = getConfig()
-  const keys = [apiKey]
-  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
   let last = 'Sin resultado'
   for (const key of keys) {
     try {
@@ -265,6 +268,268 @@ export async function searchXvideos(query) {
     }
   }
   return { error: last }
+}
+
+/** TikTok video o audio (mp3=true). */
+export async function getTiktok(url, { mp3 = false } = {}) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  const ep = mp3 ? 'tiktokmp3' : 'tiktok'
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/dl/${ep}?url=${encodeURIComponent(url)}&key=${key}`
+      )
+      const data = res?.data
+      const dl = data?.dl
+      if (res?.status && dl) {
+        return {
+          dl,
+          title: data.title || 'TikTok',
+          author: data.author?.nickname || data.author?.unique_id || '',
+          thumbnail: data.thumbnail,
+          type: data.type || (mp3 ? 'audio' : 'video'),
+          duration: data.duration || data.music_info?.duration
+        }
+      }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+/** Instagram: data.download[] con {type, url} */
+export async function getInstagram(url) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/dl/instagram?url=${encodeURIComponent(url)}&key=${key}`
+      )
+      const downloads = res?.data?.download
+      if (res?.status && Array.isArray(downloads) && downloads.length) {
+        return { downloads }
+      }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+/**
+ * Facebook v2: la API suele devolver el binario del video (no JSON).
+ * Devolvemos la URL lista para downloadToFile.
+ */
+export async function getFacebookDownloadUrl(pageUrl) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    const endpoint = `${apiUrl}/dl/facebookv2?url=${encodeURIComponent(pageUrl)}&key=${key}`
+    try {
+      // Probar HEAD/GET corto: si content-type es video, usar endpoint directo
+      const res = await fetch(endpoint, {
+        headers: { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' },
+        timeout: 30000
+      })
+      if (!res.ok) {
+        last = `HTTP ${res.status}`
+        continue
+      }
+      const ct = (res.headers.get('content-type') || '').toLowerCase()
+      if (ct.includes('application/json') || ct.includes('text/')) {
+        const text = await res.text()
+        let json
+        try {
+          json = JSON.parse(text)
+        } catch {
+          last = 'Respuesta no JSON'
+          continue
+        }
+        const dl =
+          json?.data?.dl ||
+          json?.data?.url ||
+          json?.result?.dl ||
+          json?.result?.url ||
+          json?.dl ||
+          json?.url
+        if (json?.status && dl) return { dl, title: json.data?.title || 'facebook' }
+        last = json?.message || last
+      } else {
+        // Binario: cancelar body y devolver la URL del endpoint
+        try {
+          res.body?.destroy?.()
+        } catch {}
+        return { dl: endpoint, title: 'facebook', binaryEndpoint: true }
+      }
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+export async function getSpotify(query) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  let last = 'Sin resultado'
+  const isUrl = /open\.spotify\.com\/track\//i.test(query)
+
+  for (const key of keys) {
+    try {
+      let url = query
+      let meta = null
+      if (!isUrl) {
+        const search = await fetchJson(
+          `${apiUrl}/search/spotify?query=${encodeURIComponent(query)}&key=${key}`
+        )
+        if (!search?.status || !search?.data?.length) {
+          last = search?.message || 'Sin resultados Spotify'
+          continue
+        }
+        meta = search.data[0]
+        url = meta.url
+      }
+      const res = await fetchJson(
+        `${apiUrl}/dl/spotify?url=${encodeURIComponent(url)}&key=${key}`
+      )
+      if (res?.status && res?.data?.dl) {
+        return {
+          dl: res.data.dl,
+          title: res.data.title || meta?.title || meta?.name || 'spotify',
+          artist: res.data.artist || meta?.artist || '',
+          album: res.data.album || meta?.album || '',
+          cover: res.data.image || res.data.cover || meta?.image || meta?.cover,
+          url
+        }
+      }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+export async function getMediafire(pageUrl) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/dl/mediafire?url=${encodeURIComponent(pageUrl)}&key=${key}`
+      )
+      if (res?.status && res?.result?.download) {
+        return {
+          download: res.result.download,
+          filename: res.result.filename || 'mediafire.bin',
+          filetype: res.result.filetype,
+          filesize: res.result.filesize,
+          uploaded: res.result.uploaded
+        }
+      }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+/** Danbooru/Gelbooru Alyacore: la API suele devolver imagen binaria. */
+export async function getBooruImageUrl(kind, keyword) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  const ep = kind === 'gelbooru' ? 'gelbooru' : 'danbooru'
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    const endpoint = `${apiUrl}/nsfw/${ep}?keyword=${encodeURIComponent(keyword)}&key=${key}`
+    try {
+      const res = await fetch(endpoint, {
+        headers: { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' },
+        timeout: 60000
+      })
+      if (!res.ok) {
+        last = `HTTP ${res.status}`
+        continue
+      }
+      const ct = (res.headers.get('content-type') || '').toLowerCase()
+      if (ct.includes('application/json')) {
+        const json = await res.json()
+        const img =
+          json?.data?.url ||
+          json?.data?.image ||
+          json?.result?.url ||
+          json?.url ||
+          json?.image
+        if (img) return { url: img }
+        last = json?.message || last
+      } else if (ct.startsWith('image/') || ct.includes('octet-stream')) {
+        try {
+          res.body?.destroy?.()
+        } catch {}
+        return { url: endpoint, binaryEndpoint: true }
+      } else {
+        // asumir imagen
+        try {
+          res.body?.destroy?.()
+        } catch {}
+        return { url: endpoint, binaryEndpoint: true }
+      }
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+export async function getRule34Image(tag) {
+  const clean = String(tag).replace(/\s+/g, '_')
+  const apiKey = process.env.RULE34_API_KEY || ''
+  const userId = process.env.RULE34_USER_ID || ''
+  let url =
+    `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(clean)}`
+  if (apiKey) url += `&api_key=${encodeURIComponent(apiKey)}`
+  if (userId) url += `&user_id=${encodeURIComponent(userId)}`
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+    timeout: 60000
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const text = await res.text()
+  let json = []
+  try {
+    json = JSON.parse(text)
+  } catch {
+    json = []
+  }
+  const data = Array.isArray(json) ? json : json?.post || json?.data || []
+  const images = data
+    .map((i) => i?.file_url || i?.sample_url || i?.preview_url)
+    .filter((u) => typeof u === 'string' && /\.(jpe?g|png|gif)$/i.test(u))
+  if (!images.length) return { error: `Sin resultados para ${clean}` }
+  const pick = images[Math.floor(Math.random() * images.length)]
+  return { url: pick }
+}
+
+export async function translateText(text, language = 'es') {
+  const url = `https://api.delirius.store/tools/translate?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}`
+  try {
+    const res = await fetchJson(url)
+    if (res?.data) return { text: res.data }
+    return { error: res?.message || 'No se pudo traducir' }
+  } catch (e) {
+    return { error: e.message || 'Error de traduccion' }
+  }
 }
 
 export function isDirectMediaUrl(text) {
@@ -284,4 +549,15 @@ export function safeUnlink(p) {
   try {
     if (p && fs.existsSync(p)) fs.unlinkSync(p)
   } catch {}
+}
+
+export function argText(ctx) {
+  return (
+    (ctx.match || '').toString().trim() ||
+    (ctx.message?.text || ctx.message?.caption || '')
+      .split(/\s+/)
+      .slice(1)
+      .join(' ')
+      .trim()
+  )
 }

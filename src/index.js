@@ -13,8 +13,14 @@ import {
   tmpPath,
   safeUnlink,
   mb,
-  MAX_DOWNLOAD
+  MAX_DOWNLOAD,
+  argText
 } from './api.js'
+import { handleSticker, handlePhotoCaption } from './commands/stickers.js'
+import { handleHelp, handlePing } from './commands/info.js'
+import { handleTranslate } from './commands/translate.js'
+import { createDownloadHandlers } from './commands/downloads.js'
+import { handleDanbooru, handleGelbooru, handleR34 } from './commands/nsfw.js'
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 if (!token) {
@@ -33,22 +39,6 @@ const botOpts = useLocalApi
 
 const bot = new Bot(token, botOpts)
 
-const helpText = `Luffy7 Telegram
-
-Descargas hasta ~2GB a disco.
-Si pesa >50MB, comprime y lo manda (Telegram cloud).
-
-Comandos:
-/play /mp3 — audio YouTube
-/ytvideo /mp4 — video YouTube
-/xvideos — XVideos (nombre, URL pagina o link .mp4 CDN)
-/dl — baja un link directo .mp4/.mp3
-/help — ayuda`
-
-bot.command(['start', 'help'], async (ctx) => {
-  await ctx.reply(helpText)
-})
-
 async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId, fallbackLink }) {
   let pathToSend = filePath
   let size = fs.statSync(pathToSend).size
@@ -56,11 +46,13 @@ async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId
 
   if (size > MAX_SEND) {
     if (statusId) {
-      await ctx.api.editMessageText(
-        ctx.chat.id,
-        statusId,
-        `Pesa ${mb(size)} MB. Telegram cloud max ~50 MB. Comprimiendo...`
-      ).catch(() => {})
+      await ctx.api
+        .editMessageText(
+          ctx.chat.id,
+          statusId,
+          `Pesa ${mb(size)} MB. Telegram cloud max ~50 MB. Comprimiendo...`
+        )
+        .catch(() => {})
     }
     compressedPath = await compressForTelegram(pathToSend, MAX_SEND)
     if (compressedPath && fs.existsSync(compressedPath)) {
@@ -102,9 +94,7 @@ async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId
 }
 
 async function handlePlay(ctx) {
-  const q =
-    (ctx.match || '').toString().trim() ||
-    (ctx.message?.text || '').split(/\s+/).slice(1).join(' ').trim()
+  const q = argText(ctx)
   if (!q) return ctx.reply('Uso: /play nombre o link de YouTube')
   const status = await ctx.reply('Buscando audio...')
   const out = tmpPath(`${Date.now()}-audio.mp3`)
@@ -150,9 +140,7 @@ async function handlePlay(ctx) {
 }
 
 async function handleVideo(ctx) {
-  const q =
-    (ctx.match || '').toString().trim() ||
-    (ctx.message?.text || '').split(/\s+/).slice(1).join(' ').trim()
+  const q = argText(ctx)
   if (!q) return ctx.reply('Uso: /ytvideo nombre o link de YouTube')
   const status = await ctx.reply('Buscando video...')
   const out = tmpPath(`${Date.now()}-video.mp4`)
@@ -241,14 +229,11 @@ async function downloadAndSendMedia(ctx, mediaUrl, { title = 'video', status }) 
 }
 
 async function handleXvideos(ctx) {
-  const q =
-    (ctx.match || '').toString().trim() ||
-    (ctx.message?.text || '').split(/\s+/).slice(1).join(' ').trim()
+  const q = argText(ctx)
   if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN')
   const status = await ctx.reply('Procesando XVideos...')
 
   try {
-    // Link directo CDN / mp4
     if (isDirectMediaUrl(q)) {
       await downloadAndSendMedia(ctx, q, { title: 'xvideos', status })
       return
@@ -341,9 +326,7 @@ async function handleXvideos(ctx) {
 }
 
 async function handleDl(ctx) {
-  const q =
-    (ctx.match || '').toString().trim() ||
-    (ctx.message?.text || '').split(/\s+/).slice(1).join(' ').trim()
+  const q = argText(ctx)
   if (!q || !/^https?:\/\//i.test(q)) {
     return ctx.reply('Uso: /dl https://....mp4')
   }
@@ -358,10 +341,37 @@ async function handleDl(ctx) {
   }
 }
 
+const {
+  handleTiktok,
+  handleTiktokMp3,
+  handleInstagram,
+  handleFacebook,
+  handleSpotify,
+  handleMediafire
+} = createDownloadHandlers(sendOrCompress)
+
+bot.command(['start', 'help', 'menu'], handleHelp)
+bot.command(['ping', 'p'], handlePing)
+bot.command(['traducir', 'translate'], handleTranslate)
+bot.command(['sticker', 's'], handleSticker)
+bot.on('message:photo', handlePhotoCaption)
+
 bot.command(['play', 'mp3'], handlePlay)
 bot.command(['ytvideo', 'mp4', 'playvideo'], handleVideo)
 bot.command(['xvideos', 'xv'], handleXvideos)
 bot.command(['dl', 'get'], handleDl)
+
+bot.command(['tiktok', 'tt'], handleTiktok)
+bot.command(['tiktokmp3', 'ttmp3', 'ttaudio', 'tiktokaudio'], handleTiktokMp3)
+bot.command(['ig', 'instagram', 'reel'], handleInstagram)
+bot.command(['fb', 'facebook'], handleFacebook)
+bot.command(['spotify', 'sp'], handleSpotify)
+bot.command(['mediafire', 'mf'], handleMediafire)
+
+bot.command(['danbooru', 'dbooru'], handleDanbooru)
+bot.command(['gelbooru', 'gbooru'], handleGelbooru)
+bot.command(['r34', 'rule34', 'rule'], handleR34)
+
 bot.catch((err) => console.error('Bot error', err))
 bot.start()
 console.log(
