@@ -93,13 +93,13 @@ export async function downloadToFile(url, destPath, {
   return st.size
 }
 
-/** Comprime MP4 para que Telegram cloud (~50MB) pueda enviarlo. */
+/** Comprime MP4 rapido para Telegram cloud (~50MB). Un pase agresivo primero. */
 export async function compressForTelegram(inputPath, maxSendBytes) {
   const outFile = path.join(TMP_DIR, `${Date.now()}-tg-out.mp4`)
+  // ultrafast + 360p primero = mucho mas rapido en Termux/celular
   const attempts = [
-    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-vf', "scale='min(720,iw)':-2", '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', outFile],
-    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-vf', "scale='min(480,iw)':-2", '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', outFile],
-    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '35', '-vf', "scale='min(360,iw)':-2", '-c:a', 'aac', '-b:a', '48k', '-movflags', '+faststart', outFile]
+    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '30', '-vf', "scale='min(360,iw)':-2", '-c:a', 'aac', '-b:a', '64k', '-ac', '1', '-movflags', '+faststart', '-threads', '0', outFile],
+    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '34', '-vf', "scale='min(360,iw)':-2", '-c:a', 'aac', '-b:a', '48k', '-ac', '1', '-movflags', '+faststart', '-threads', '0', outFile]
   ]
 
   let bestPath = null
@@ -113,7 +113,7 @@ export async function compressForTelegram(inputPath, maxSendBytes) {
       if (!size) continue
       if (size < bestSize) {
         bestSize = size
-        if (bestPath && bestPath !== outFile) safeUnlink(bestPath)
+        if (bestPath) safeUnlink(bestPath)
         const keep = path.join(TMP_DIR, `${Date.now()}-best.mp4`)
         fs.copyFileSync(outFile, keep)
         bestPath = keep
