@@ -8,6 +8,8 @@ import {
   getXvideosDownload,
   searchXvideos,
   downloadToFile,
+  compressForTelegram,
+  isDirectMediaUrl,
   tmpPath,
   safeUnlink,
   mb,
@@ -20,7 +22,6 @@ if (!token) {
   process.exit(1)
 }
 
-// Cloud Bot API = 50MB. Con Bot API local (TELEGRAM_API_ROOT) Telegram permite hasta 2GB.
 const useLocalApi = Boolean(process.env.TELEGRAM_API_ROOT)
 const MAX_SEND = Number(
   process.env.MAX_SEND_BYTES || (useLocalApi ? 1900 * 1024 * 1024 : 49 * 1024 * 1024)
@@ -35,37 +36,55 @@ const bot = new Bot(token, botOpts)
 const helpText = `Luffy7 Telegram
 
 Descargas hasta ~2GB a disco.
-Envío: hasta ~50MB (Telegram cloud) o hasta ~2GB si usas Bot API local.
+Si pesa >50MB, comprime y lo manda (Telegram cloud).
 
 Comandos:
 /play /mp3 — audio YouTube
 /ytvideo /mp4 — video YouTube
-/xvideos — video XVideos (nombre o URL)
-/help — ayuda
-
-Ejemplos:
-/play never gonna give you up
-/ytvideo https://youtu.be/dQw4w9WgXcQ
-/xvideos https://www.xvideos.com/video....`
+/xvideos — XVideos (nombre, URL pagina o link .mp4 CDN)
+/dl — baja un link directo .mp4/.mp3
+/help — ayuda`
 
 bot.command(['start', 'help'], async (ctx) => {
   await ctx.reply(helpText)
 })
 
-async function sendBigFile(ctx, filePath, { kind, fileName, caption }) {
-  const size = fs.statSync(filePath).size
+async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId, fallbackLink }) {
+  let pathToSend = filePath
+  let size = fs.statSync(pathToSend).size
+  let compressedPath = null
+
   if (size > MAX_SEND) {
-    return {
-      tooBig: true,
-      size,
-      msg:
-        `Archivo listo en el bot: ${mb(size)} MB.\n` +
-        `Telegram cloud solo envía ~50 MB (tope actual del bot: ${mb(MAX_SEND)} MB).\n` +
-        `Para mandar hasta 2GB hace falta Bot API local (TELEGRAM_API_ROOT).\n` +
-        (caption ? `Info: ${caption}` : '')
+    if (statusId) {
+      await ctx.api.editMessageText(
+        ctx.chat.id,
+        statusId,
+        `Pesa ${mb(size)} MB. Telegram cloud max ~50 MB. Comprimiendo...`
+      ).catch(() => {})
+    }
+    compressedPath = await compressForTelegram(pathToSend, MAX_SEND)
+    if (compressedPath && fs.existsSync(compressedPath)) {
+      pathToSend = compressedPath
+      size = fs.statSync(pathToSend).size
     }
   }
-  const input = new InputFile(filePath, fileName)
+
+  if (size > MAX_SEND) {
+    const msg =
+      `Archivo ${mb(fs.statSync(filePath).size)} MB` +
+      (compressedPath ? ` (comprimido ${mb(size)} MB)` : '') +
+      `.\nTelegram cloud solo envia ~50 MB.\n` +
+      (fallbackLink ? `\nEnlace directo:\n${fallbackLink}` : '')
+    if (statusId) {
+      await ctx.api.editMessageText(ctx.chat.id, statusId, msg).catch(() => ctx.reply(msg))
+    } else {
+      await ctx.reply(msg)
+    }
+    safeUnlink(compressedPath)
+    return false
+  }
+
+  const input = new InputFile(pathToSend, fileName)
   if (kind === 'audio') {
     await ctx.replyWithAudio(input, { title: caption })
   } else if (kind === 'video') {
@@ -77,7 +96,9 @@ async function sendBigFile(ctx, filePath, { kind, fileName, caption }) {
   } else {
     await ctx.replyWithDocument(input, { caption })
   }
-  return { tooBig: false, size }
+  safeUnlink(compressedPath)
+  if (statusId) await ctx.api.deleteMessage(ctx.chat.id, statusId).catch(() => {})
+  return true
 }
 
 async function handlePlay(ctx) {
@@ -111,20 +132,13 @@ async function handlePlay(ctx) {
       return ctx.api.editMessageText(ctx.chat.id, status.message_id, 'El audio vino incompleto.')
     }
     const name = ((got.title || video.title).slice(0, 40) || 'audio') + '.mp3'
-    const sent = await sendBigFile(ctx, out, {
+    await sendOrCompress(ctx, out, {
       kind: 'audio',
       fileName: name,
-      caption: got.title || video.title
+      caption: got.title || video.title,
+      statusId: status.message_id,
+      fallbackLink: got.dl
     })
-    if (sent.tooBig) {
-      await ctx.api.editMessageText(
-        ctx.chat.id,
-        status.message_id,
-        sent.msg + `\n\nEnlace directo:\n${got.dl}`
-      )
-    } else {
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
-    }
   } catch (e) {
     console.error(e)
     await ctx.api
@@ -183,20 +197,13 @@ async function handleVideo(ctx) {
     }
     const name =
       ((got.title || video.title).replace(/[^\w\s.-]/g, '').slice(0, 40) || 'video') + '.mp4'
-    const sent = await sendBigFile(ctx, out, {
+    await sendOrCompress(ctx, out, {
       kind: 'video',
       fileName: name,
-      caption: got.title || video.title
+      caption: got.title || video.title,
+      statusId: status.message_id,
+      fallbackLink: got.dl
     })
-    if (sent.tooBig) {
-      await ctx.api.editMessageText(
-        ctx.chat.id,
-        status.message_id,
-        sent.msg + `\n\nEnlace directo:\n${got.dl}`
-      )
-    } else {
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
-    }
   } catch (e) {
     console.error(e)
     await ctx.api
@@ -207,14 +214,46 @@ async function handleVideo(ctx) {
   }
 }
 
+async function downloadAndSendMedia(ctx, mediaUrl, { title = 'video', status }) {
+  const out = tmpPath(`${Date.now()}-media.mp4`)
+  try {
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      status.message_id,
+      `Bajando a disco (tope ${mb(MAX_DOWNLOAD)} MB)...`
+    )
+    const size = await downloadToFile(mediaUrl, out, { timeout: 1_800_000 })
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      status.message_id,
+      `Descargado ${mb(size)} MB. Preparando envio...`
+    )
+    await sendOrCompress(ctx, out, {
+      kind: 'video',
+      fileName: 'video.mp4',
+      caption: title,
+      statusId: status.message_id,
+      fallbackLink: mediaUrl
+    })
+  } finally {
+    safeUnlink(out)
+  }
+}
+
 async function handleXvideos(ctx) {
   const q =
     (ctx.match || '').toString().trim() ||
     (ctx.message?.text || '').split(/\s+/).slice(1).join(' ').trim()
-  if (!q) return ctx.reply('Uso: /xvideos nombre o URL de XVideos')
-  const status = await ctx.reply('Buscando en XVideos...')
-  const out = tmpPath(`${Date.now()}-xvideos.mp4`)
+  if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN')
+  const status = await ctx.reply('Procesando XVideos...')
+
   try {
+    // Link directo CDN / mp4
+    if (isDirectMediaUrl(q)) {
+      await downloadAndSendMedia(ctx, q, { title: 'xvideos', status })
+      return
+    }
+
     let videoUrl = q
     let title = 'xvideos'
 
@@ -233,7 +272,7 @@ async function handleXvideos(ctx) {
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        `*${title}*\n${pick.duration || ''}\n${videoUrl}`.replace(/\*/g, '')
+        `${title}\n${pick.duration || ''}\n${videoUrl}`
       )
     }
 
@@ -247,70 +286,82 @@ async function handleXvideos(ctx) {
       )
     }
 
+    const out = tmpPath(`${Date.now()}-xvideos.mp4`)
     let usedLink = null
     let lastErr = ''
-    for (const c of got.candidates) {
-      try {
-        await ctx.api.editMessageText(
+    try {
+      for (const c of got.candidates) {
+        try {
+          await ctx.api.editMessageText(
+            ctx.chat.id,
+            status.message_id,
+            `Bajando calidad ${c.quality}...`
+          )
+          await downloadToFile(c.url, out, { timeout: 1_800_000 })
+          usedLink = c.url
+          break
+        } catch (e) {
+          lastErr = e.message || String(e)
+          safeUnlink(out)
+          console.error('[xvideos]', c.quality, lastErr)
+        }
+      }
+
+      if (!usedLink || !fs.existsSync(out)) {
+        return ctx.api.editMessageText(
           ctx.chat.id,
           status.message_id,
-          `Bajando calidad ${c.quality} (hasta ${mb(MAX_DOWNLOAD)} MB a disco)...`
+          'Fallo la descarga.\n' + lastErr
         )
-        await downloadToFile(c.url, out, {
-          timeout: 1_800_000,
-          headers: { Referer: 'https://www.xvideos.com/' }
-        })
-        usedLink = c.url
-        break
-      } catch (e) {
-        lastErr = e.message || String(e)
-        safeUnlink(out)
-        console.error('[xvideos]', c.quality, lastErr)
       }
-    }
 
-    if (!usedLink || !fs.existsSync(out)) {
-      return ctx.api.editMessageText(
-        ctx.chat.id,
-        status.message_id,
-        'Fallo la descarga.\n' + lastErr
-      )
-    }
-
-    const size = fs.statSync(out).size
-    await ctx.api.editMessageText(
-      ctx.chat.id,
-      status.message_id,
-      `Descargado ${mb(size)} MB. Enviando...`
-    )
-
-    const sent = await sendBigFile(ctx, out, {
-      kind: 'video',
-      fileName: 'xvideos.mp4',
-      caption: title
-    })
-    if (sent.tooBig) {
+      const size = fs.statSync(out).size
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        sent.msg + `\n\nEnlace directo:\n${usedLink}`
+        `Descargado ${mb(size)} MB. Preparando envio...`
       )
-    } else {
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
+
+      await sendOrCompress(ctx, out, {
+        kind: 'video',
+        fileName: 'xvideos.mp4',
+        caption: title,
+        statusId: status.message_id,
+        fallbackLink: usedLink
+      })
+    } finally {
+      safeUnlink(out)
     }
   } catch (e) {
     console.error(e)
     await ctx.api
       .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + e.message)
       .catch(() => ctx.reply(String(e.message)))
-  } finally {
-    safeUnlink(out)
+  }
+}
+
+async function handleDl(ctx) {
+  const q =
+    (ctx.match || '').toString().trim() ||
+    (ctx.message?.text || '').split(/\s+/).slice(1).join(' ').trim()
+  if (!q || !/^https?:\/\//i.test(q)) {
+    return ctx.reply('Uso: /dl https://....mp4')
+  }
+  const status = await ctx.reply('Descargando link directo...')
+  try {
+    await downloadAndSendMedia(ctx, q, { title: 'archivo', status })
+  } catch (e) {
+    console.error(e)
+    await ctx.api
+      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + e.message)
+      .catch(() => ctx.reply(String(e.message)))
   }
 }
 
 bot.command(['play', 'mp3'], handlePlay)
 bot.command(['ytvideo', 'mp4', 'playvideo'], handleVideo)
 bot.command(['xvideos', 'xv'], handleXvideos)
+bot.command(['dl', 'get'], handleDl)
 bot.catch((err) => console.error('Bot error', err))
 bot.start()
 console.log(
