@@ -1,13 +1,24 @@
 import fetch from 'node-fetch'
 import yts from 'yt-search'
+import fs from 'fs'
+import path from 'path'
+import { pipeline } from 'stream/promises'
+import { createWriteStream } from 'fs'
+import { Readable } from 'stream'
 
 const FALLBACK_KEY = 'LUFFY-FIX67'
+export const MAX_DOWNLOAD = Number(process.env.MAX_DOWNLOAD_BYTES || 2 * 1024 * 1024 * 1024) // 2GB
+export const TMP_DIR = path.join(process.cwd(), 'tmp-dl')
 
 export function getConfig() {
   return {
     apiUrl: (process.env.ALYACORE_API_URL || 'https://api.alyacore.xyz').replace(/\/$/, ''),
     apiKey: (process.env.ALYACORE_API_KEY || FALLBACK_KEY).trim() || FALLBACK_KEY
   }
+}
+
+export function mb(n) {
+  return (Number(n) / 1024 / 1024).toFixed(1)
 }
 
 async function fetchJson(url) {
@@ -19,9 +30,48 @@ async function fetchJson(url) {
   return res.json()
 }
 
+/** Descarga a archivo en disco (no a RAM). Tope 2GB. */
+export async function downloadToFile(url, destPath, {
+  timeout = 1_800_000,
+  headers = {},
+  maxBytes = MAX_DOWNLOAD
+} = {}) {
+  if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
+      Accept: '*/*',
+      ...headers
+    },
+    timeout
+  })
+  if (!res.ok) throw new Error(`Descarga HTTP ${res.status}`)
+  const len = Number(res.headers.get('content-length') || 0)
+  if (len && len > maxBytes) {
+    throw new Error(`Archivo ~${mb(len)} MB supera el tope de descarga (${mb(maxBytes)} MB)`)
+  }
+  const body = res.body
+  if (!body) throw new Error('Sin body en la descarga')
+
+  let written = 0
+  const nodeStream = Readable.fromWeb(body)
+  const out = createWriteStream(destPath)
+  nodeStream.on('data', (chunk) => {
+    written += chunk.length
+    if (written > maxBytes) {
+      nodeStream.destroy(new Error(`Descarga cortada: supera ${mb(maxBytes)} MB`))
+    }
+  })
+  await pipeline(nodeStream, out)
+  const st = fs.statSync(destPath)
+  if (!st.size) throw new Error('Archivo vacío')
+  return st.size
+}
+
+/** Para archivos chicos (<50MB) sigue útil. */
 export async function downloadBuffer(url, timeout = 180000) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: '**' },
+    headers: { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' },
     timeout
   })
   if (!res.ok) throw new Error(`Descarga HTTP ${res.status}`)
@@ -29,12 +79,14 @@ export async function downloadBuffer(url, timeout = 180000) {
 }
 
 export async function resolveYoutube(text) {
-  const videoMatch = String(text).match(/(?:youtu\.be\/|youtube\.com\/(?:pwatch\?v=|embed\/|shorts\/|live\/|v\/))([a-zA-Z0-9_]{9,11})/)
+  const videoMatch = String(text).match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/|v\/))([a-zA-Z0-9_-]{9,11})/
+  )
   const query = videoMatch ? `https://youtu.be/${videoMatch[1]}` : text
   const search = await yts(query)
   if (!search.videos?.length) return null
   const video = videoMatch
-    ? (search.videos.find(v => v.videoId === videoMatch[1]) || search.videos[0])
+    ? (search.videos.find((v) => v.videoId === videoMatch[1]) || search.videos[0])
     : search.videos[0]
   return video
 }
@@ -44,7 +96,7 @@ export async function getAudioLink(videoUrl, title) {
   const keys = [apiKey]
   if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
   const urls = [videoUrl]
-  const idMatch = String(videoUrl).match(/(?:youtu\.be\/~v=|shorts\/)([a-zA-Z0-9_-]{11})/)
+  const idMatch = String(videoUrl).match(/(?:youtu\.be\/|v=|shorts\/)([a-zA-Z0-9_-]{11})/)
   if (idMatch) {
     urls.push(`https://youtu.be/${idMatch[1]}`, `https://www.youtube.com/watch?v=${idMatch[1]}`)
   }
@@ -57,7 +109,9 @@ export async function getAudioLink(videoUrl, title) {
           const dl = res?.data?.dl || res?.result?.dl || res?.dl
           if (res?.status && dl) return { dl, title: res.data?.title || title }
           last = res?.message || last
-        } catch (e) { last = e.message || last }
+        } catch (e) {
+          last = e.message || last
+        }
       }
     }
   }
@@ -69,7 +123,7 @@ export async function getVideoLink(videoUrl, title) {
   const keys = [apiKey]
   if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
   const urls = [videoUrl]
-  const idMatch = String(videoUrl).match(/(?:youtu\.be\/~v=|shorts\/)([a-zA-Z0-9_-]{11})/)
+  const idMatch = String(videoUrl).match(/(?:youtu\.be\/|v=|shorts\/)([a-zA-Z0-9_-]{11})/)
   if (idMatch) {
     urls.push(`https://youtu.be/${idMatch[1]}`, `https://www.youtube.com/watch?v=${idMatch[1]}`)
   }
@@ -78,18 +132,86 @@ export async function getVideoLink(videoUrl, title) {
     for (const u of urls) {
       for (const quality of ['480', '360', '720', 'auto']) {
         try {
-          const res = await fetchJson(`${apiUrl}/dl/youtubeplayv2?query=${encodeURIComponent(u)}&type=mp4&quality=${quality}&key=${key}`)
-          if (res?.status && res?.data?.dl) return { dl: res.data.dl, title: res.data.title || title, size: res.data.size }
+          const res = await fetchJson(
+            `${apiUrl}/dl/youtubeplayv2?query=${encodeURIComponent(u)}&type=mp4&quality=${quality}&key=${key}`
+          )
+          if (res?.status && res?.data?.dl) {
+            return { dl: res.data.dl, title: res.data.title || title, size: res.data.size }
+          }
           last = res?.message || last
-        } catch (e) { last = e.message || last }
+        } catch (e) {
+          last = e.message || last
+        }
       }
       try {
         const alt = await fetchJson(`${apiUrl}/dl/ytmp4?url=${encodeURIComponent(u)}&key=${key}`)
         const dl = alt?.data?.dl || alt?.result?.dl || alt?.dl
         if (alt?.status && dl) return { dl, title: alt.data?.title || title }
         last = alt?.message || last
-      } catch (e) { last = e.message || last }
+      } catch (e) {
+        last = e.message || last
+      }
     }
   }
   return { error: last }
+}
+
+function pickXvideosCandidates(resultado) {
+  const videos = resultado?.videos || resultado?.result?.videos || {}
+  const list = []
+  if (videos.high) list.push({ quality: 'high', url: videos.high })
+  if (videos.low) list.push({ quality: 'low', url: videos.low })
+  const legacy = resultado?.result?.url || resultado?.url || resultado?.dl
+  if (legacy) list.push({ quality: 'legacy', url: legacy })
+  return list
+}
+
+export async function getXvideosDownload(videoUrl) {
+  const { apiUrl, apiKey } = getConfig()
+  const keys = [apiKey]
+  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/nsfw/dl/xvideos?url=${encodeURIComponent(videoUrl)}&key=${key}`
+      )
+      const candidates = pickXvideosCandidates(res?.resultado)
+      if (res?.status && candidates.length) return { candidates, message: res.message }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+export async function searchXvideos(query) {
+  const { apiUrl, apiKey } = getConfig()
+  const keys = [apiKey]
+  if (apiKey !== FALLBACK_KEY) keys.push(FALLBACK_KEY)
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/nsfw/search/xvideos?query=${encodeURIComponent(query)}&key=${key}`
+      )
+      if (res?.status && res?.resultados?.length) return { results: res.resultados }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+export function tmpPath(name) {
+  if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
+  return path.join(TMP_DIR, name)
+}
+
+export function safeUnlink(p) {
+  try {
+    if (p && fs.existsSync(p)) fs.unlinkSync(p)
+  } catch {}
 }
