@@ -5,7 +5,10 @@ import path from 'path'
 import { pipeline } from 'stream/promises'
 import { createWriteStream } from 'fs'
 import { Readable } from 'stream'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 
+const execFileAsync = promisify(execFile)
 const FALLBACK_KEY = 'LUFFY-FIX67'
 export const MAX_DOWNLOAD = Number(process.env.MAX_DOWNLOAD_BYTES || 2 * 1024 * 1024 * 1024) // 2GB
 export const TMP_DIR = path.join(process.cwd(), 'tmp-dl')
@@ -30,6 +33,20 @@ async function fetchJson(url) {
   return res.json()
 }
 
+function defaultDlHeaders(url) {
+  const u = String(url)
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    Accept: '*/*'
+  }
+  if (u.includes('xvideos') || u.includes('xvideos-cdn')) {
+    headers.Referer = 'https://www.xvideos.com/'
+    headers.Origin = 'https://www.xvideos.com'
+  }
+  return headers
+}
+
 /** Descarga a archivo en disco (no a RAM). Tope 2GB. */
 export async function downloadToFile(url, destPath, {
   timeout = 1_800_000,
@@ -38,11 +55,7 @@ export async function downloadToFile(url, destPath, {
 } = {}) {
   if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
   const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
-      Accept: '*/*',
-      ...headers
-    },
+    headers: { ...defaultDlHeaders(url), ...headers },
     timeout
   })
   if (!res.ok) throw new Error(`Descarga HTTP ${res.status}`)
@@ -68,10 +81,46 @@ export async function downloadToFile(url, destPath, {
   return st.size
 }
 
-/** Para archivos chicos (<50MB) sigue útil. */
+/** Comprime MP4 para que Telegram cloud (~50MB) pueda enviarlo. */
+export async function compressForTelegram(inputPath, maxSendBytes) {
+  const outFile = path.join(TMP_DIR, `${Date.now()}-tg-out.mp4`)
+  const attempts = [
+    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-vf', "scale='min(720,iw)':-2", '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', outFile],
+    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-vf', "scale='min(480,iw)':-2", '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', outFile],
+    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '35', '-vf', "scale='min(360,iw)':-2", '-c:a', 'aac', '-b:a', '48k', '-movflags', '+faststart', outFile]
+  ]
+
+  let bestPath = null
+  let bestSize = Infinity
+
+  for (const args of attempts) {
+    try {
+      await execFileAsync('ffmpeg', args, { timeout: 900000 })
+      if (!fs.existsSync(outFile)) continue
+      const size = fs.statSync(outFile).size
+      if (!size) continue
+      if (size < bestSize) {
+        bestSize = size
+        if (bestPath && bestPath !== outFile) safeUnlink(bestPath)
+        const keep = path.join(TMP_DIR, `${Date.now()}-best.mp4`)
+        fs.copyFileSync(outFile, keep)
+        bestPath = keep
+      }
+      if (size <= maxSendBytes) {
+        safeUnlink(outFile)
+        return bestPath
+      }
+    } catch (e) {
+      console.error('[ffmpeg]', e?.message || e)
+    }
+  }
+  safeUnlink(outFile)
+  return bestPath
+}
+
 export async function downloadBuffer(url, timeout = 180000) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' },
+    headers: defaultDlHeaders(url),
     timeout
   })
   if (!res.ok) throw new Error(`Descarga HTTP ${res.status}`)
@@ -159,8 +208,9 @@ export async function getVideoLink(videoUrl, title) {
 function pickXvideosCandidates(resultado) {
   const videos = resultado?.videos || resultado?.result?.videos || {}
   const list = []
-  if (videos.high) list.push({ quality: 'high', url: videos.high })
+  // Preferir low/360 primero para Telegram cloud
   if (videos.low) list.push({ quality: 'low', url: videos.low })
+  if (videos.high) list.push({ quality: 'high', url: videos.high })
   const legacy = resultado?.result?.url || resultado?.url || resultado?.dl
   if (legacy) list.push({ quality: 'legacy', url: legacy })
   return list
@@ -203,6 +253,14 @@ export async function searchXvideos(query) {
     }
   }
   return { error: last }
+}
+
+export function isDirectMediaUrl(text) {
+  const u = String(text || '').trim()
+  if (!/^https?:\/\//i.test(u)) return false
+  if (/\.(mp4|m4v|webm|mkv|mp3|m4a|ogg)(\?|#|$)/i.test(u)) return true
+  if (u.includes('xvideos-cdn.com') || u.includes('xhcdn.com')) return true
+  return false
 }
 
 export function tmpPath(name) {
