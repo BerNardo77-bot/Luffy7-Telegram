@@ -26,11 +26,93 @@ export function mb(n) {
 
 async function fetchJson(url) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      Accept: 'application/json'
+    },
     timeout: 60000
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  const text = await res.text()
+  let json = {}
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch {
+    json = { message: text?.slice(0, 200) || `HTTP ${res.status}` }
+  }
+  if (!res.ok) {
+    const msg = json?.message || json?.error || `HTTP ${res.status}`
+    const err = new Error(String(msg))
+    err.status = res.status
+    err.json = json
+    throw err
+  }
+  return json
+}
+
+/** Extrae ID de YouTube limpio (ignora ?si= y texto pegado dos veces). */
+export function extractYoutubeId(text) {
+  const s = String(text || '')
+  const m = s.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/|v\/)|[?&]v=)([a-zA-Z0-9_-]{11})/
+  )
+  return m ? m[1] : null
+}
+
+export function normalizeYoutubeUrls(text) {
+  const id = extractYoutubeId(text)
+  if (!id) {
+    // primer http link si hay
+    const link = String(text || '').match(/https?:\/\/[^\s]+/i)
+    return link ? [link[0].replace(/[),.;]+$/, '')] : [String(text || '').trim()].filter(Boolean)
+  }
+  return [
+    `https://youtu.be/${id}`,
+    `https://www.youtube.com/watch?v=${id}`,
+    `https://www.youtube.com/shorts/${id}`
+  ]
+}
+
+/** Fallback Termux: yt-dlp baja MP4 a disco. */
+export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
+  const id = extractYoutubeId(videoUrlOrId) || String(videoUrlOrId).trim()
+  const url = id.length === 11 && !id.includes('/') ? `https://www.youtube.com/watch?v=${id}` : videoUrlOrId
+  const args = [
+    '-f',
+    'bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480]/b',
+    '--merge-output-format',
+    'mp4',
+    '--no-playlist',
+    '-o',
+    destPath,
+    '--no-warnings',
+    url
+  ]
+  try {
+    await execFileAsync('yt-dlp', args, { timeout: 1_200_000 })
+  } catch (e1) {
+    // binario alternativo
+    try {
+      await execFileAsync('yt-dlp', ['-f', 'best[height<=360]/b', '--no-playlist', '-o', destPath, url], {
+        timeout: 1_200_000
+      })
+    } catch (e2) {
+      throw new Error(
+        `yt-dlp fallo: ${(e2?.stderr || e2?.message || e1?.message || e1).toString().slice(0, 200)}. Instala: pkg install yt-dlp`
+      )
+    }
+  }
+  if (!fs.existsSync(destPath) || !fs.statSync(destPath).size) {
+    // yt-dlp a veces agrega extension
+    const alt = destPath + '.mp4'
+    if (fs.existsSync(alt) && fs.statSync(alt).size) {
+      fs.renameSync(alt, destPath)
+    }
+  }
+  if (!fs.existsSync(destPath) || !fs.statSync(destPath).size) {
+    throw new Error('yt-dlp no genero el archivo')
+  }
+  return fs.statSync(destPath).size
 }
 
 function defaultDlHeaders(url) {
@@ -147,14 +229,12 @@ export async function downloadBuffer(url, timeout = 180000) {
 }
 
 export async function resolveYoutube(text) {
-  const videoMatch = String(text).match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/|v\/))([a-zA-Z0-9_-]{9,11})/
-  )
-  const query = videoMatch ? `https://youtu.be/${videoMatch[1]}` : text
+  const id = extractYoutubeId(text)
+  const query = id ? `https://youtu.be/${id}` : String(text).trim()
   const search = await yts(query)
   if (!search.videos?.length) return null
-  const video = videoMatch
-    ? (search.videos.find((v) => v.videoId === videoMatch[1]) || search.videos[0])
+  const video = id
+    ? (search.videos.find((v) => v.videoId === id) || search.videos[0])
     : search.videos[0]
   return video
 }
@@ -188,38 +268,33 @@ export async function getAudioLink(videoUrl, title) {
 export async function getVideoLink(videoUrl, title) {
   const { apiUrl } = getConfig()
   const keys = apiKeys()
-  const urls = [videoUrl]
-  const idMatch = String(videoUrl).match(/(?:youtu\.be\/|v=|shorts\/)([a-zA-Z0-9_-]{11})/)
-  if (idMatch) {
-    urls.push(`https://youtu.be/${idMatch[1]}`, `https://www.youtube.com/watch?v=${idMatch[1]}`)
-  }
+  const urls = normalizeYoutubeUrls(videoUrl)
   let last = 'Sin resultado'
+  const endpoints = []
+  for (const u of urls) {
+    for (const quality of ['360', '480', '240', '720', 'auto']) {
+      endpoints.push((key) =>
+        `${apiUrl}/dl/youtubeplayv2?query=${encodeURIComponent(u)}&type=mp4&quality=${quality}&key=${key}`
+      )
+    }
+    endpoints.push((key) => `${apiUrl}/dl/ytmp4?url=${encodeURIComponent(u)}&key=${key}`)
+    endpoints.push((key) => `${apiUrl}/dl/ytmp4v2?url=${encodeURIComponent(u)}&key=${key}`)
+  }
   for (const key of keys) {
-    for (const u of urls) {
-      for (const quality of ['480', '360', '720', 'auto']) {
-        try {
-          const res = await fetchJson(
-            `${apiUrl}/dl/youtubeplayv2?query=${encodeURIComponent(u)}&type=mp4&quality=${quality}&key=${key}`
-          )
-          if (res?.status && res?.data?.dl) {
-            return { dl: res.data.dl, title: res.data.title || title, size: res.data.size }
-          }
-          last = res?.message || last
-        } catch (e) {
-          last = e.message || last
-        }
-      }
+    for (const make of endpoints) {
       try {
-        const alt = await fetchJson(`${apiUrl}/dl/ytmp4?url=${encodeURIComponent(u)}&key=${key}`)
-        const dl = alt?.data?.dl || alt?.result?.dl || alt?.dl
-        if (alt?.status && dl) return { dl, title: alt.data?.title || title }
-        last = alt?.message || last
+        const res = await fetchJson(make(key))
+        const dl = res?.data?.dl || res?.result?.dl || res?.dl
+        if (res?.status && dl) {
+          return { dl, title: res.data?.title || res.result?.title || title, size: res.data?.size }
+        }
+        last = res?.message || last
       } catch (e) {
         last = e.message || last
       }
     }
   }
-  return { error: last }
+  return { error: last, urlsTried: urls }
 }
 
 function pickXvideosCandidates(resultado) {
@@ -552,12 +627,20 @@ export function safeUnlink(p) {
 }
 
 export function argText(ctx) {
-  return (
+  const raw =
     (ctx.match || '').toString().trim() ||
     (ctx.message?.text || ctx.message?.caption || '')
       .split(/\s+/)
       .slice(1)
       .join(' ')
       .trim()
-  )
+  if (!raw) return ''
+  // si pegaron el comando dos veces, quedarse con el primer link/ID
+  const id = extractYoutubeId(raw)
+  if (id) return `https://youtu.be/${id}`
+  const link = raw.match(/https?:\/\/[^\s]+/i)
+  if (link) return link[0].replace(/[),.;]+$/, '')
+  // cortar si aparece otro /comando en el medio
+  const cut = raw.split(/\s+\//)[0].trim()
+  return cut || raw
 }
