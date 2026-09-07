@@ -221,14 +221,17 @@ async function handleVideo(ctx) {
     if (brand !== 'ftyp' && !usedYtdlp) {
       return ctx.api.editMessageText(ctx.chat.id, status.message_id, 'La API no devolvio un MP4 valido.')
     }
-    // si yt-dlp dejo webm/mkv, remux rapido a mp4
     if (brand !== 'ftyp' && usedYtdlp) {
       try {
-        const remuxed = out.replace(/\.mp4$/i, ') + '-remux.mp4'
+        const remuxed = out.replace(/\.mp4$/i, '') + '-remux.mp4'
         const { execFile } = await import('child_process')
         const { promisify } = await import('util')
         const execFileAsync = promisify(execFile)
-        await execFileAsync('ffmpeg', ['-y', '-i', out, '-c', 'copy', '-movflags', '+faststart', remuxed], { timeout: 300000 })
+        await execFileAsync(
+          'ffmpeg',
+          ['-y', '-i', out, '-c', 'copy', '-movflags', '+faststart', remuxed],
+          { timeout: 300000 }
+        )
         if (fs.existsSync(remuxed) && fs.statSync(remuxed).size) {
           fs.renameSync(remuxed, out)
         }
