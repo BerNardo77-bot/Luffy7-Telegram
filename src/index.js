@@ -443,7 +443,7 @@ bot.command(NSFW_INTERACTION_COMMANDS, handleNsfwInteraction)
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.4.3 arrancando...')
+console.log('Luffy7 Telegram v1.4.4 arrancando...')
 bot.start().then(() => {
   console.log(
   'Luffy7 Telegram online | download<=',
