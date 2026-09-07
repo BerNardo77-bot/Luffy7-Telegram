@@ -80,6 +80,24 @@ export function normalizeYoutubeUrls(text) {
 }
 
 /** Fallback Termux: yt-dlp baja MP4 a disco. */
+export function resolveYtDlpBin() {
+  const candidates = [
+    process.env.YT_DLP_PATH,
+    'yt-dlp',
+    path.join(process.env.HOME || '', '.local', 'bin', 'yt-dlp'),
+    path.join(process.env.PREFIX || '', 'bin', 'yt-dlp'),
+    '/data/data/com.termux/files/usr/bin/yt-dlp'
+  ].filter(Boolean)
+
+  for (const c of candidates) {
+    try {
+      if (c === 'yt-dlp') return c
+      if (fs.existsSync(c)) return c
+    } catch {}
+  }
+  return null
+}
+
 export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
   const id = extractYoutubeId(videoUrlOrId) || String(videoUrlOrId).trim()
   const url =
@@ -89,30 +107,34 @@ export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
 
   if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
   const outTpl = destPath.replace(/\.mp4$/i, '') + '.%(ext)s'
+  const bin = resolveYtDlpBin()
 
-  const attempts = [
-    ['yt-dlp', ['-f', 'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst', '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]],
-    ['yt-dlp', ['-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]],
-    ['youtube-dl', ['-f', 'best[height<=360]/b', '--no-playlist', '-o', outTpl, url]]
-  ]
+  const attempts = []
+  if (bin) {
+    attempts.push([bin, ['-f', 'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst', '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+    attempts.push([bin, ['-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+  }
+  // Fallbacks Termux / pip
+  attempts.push(['python', ['-m', 'yt_dlp', '-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+  attempts.push(['python3', ['-m', 'yt_dlp', '-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
 
-  let lastErr = 'yt-dlp no disponible'
-  for (const [bin, args] of attempts) {
+  let lastErr = 'yt-dlp no encontrado'
+  for (const [cmd, args] of attempts) {
     try {
-      await execFileAsync(bin, args, { timeout: 1_200_000, maxBuffer: 10 * 1024 * 1024 })
-      // localizar archivo generado
+      await execFileAsync(cmd, args, { timeout: 1_200_000, maxBuffer: 10 * 1024 * 1024 })
       const base = destPath.replace(/\.mp4$/i, '')
       const candidates = [destPath, base + '.mp4', base + '.webm', base + '.mkv']
       let found = candidates.find((p) => fs.existsSync(p) && fs.statSync(p).size > 0)
       if (!found) {
-        // buscar por prefijo en TMP_DIR
         const name = path.basename(base)
         const hit = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(name) && /\.(mp4|webm|mkv)$/i.test(f))
         if (hit) found = path.join(TMP_DIR, hit)
       }
       if (!found) throw new Error('yt-dlp no genero archivo')
       if (found !== destPath) {
-        try { fs.renameSync(found, destPath) } catch {
+        try {
+          fs.renameSync(found, destPath)
+        } catch {
           fs.copyFileSync(found, destPath)
           safeUnlink(found)
         }
@@ -121,11 +143,14 @@ export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
     } catch (e) {
       const msg = (e?.stderr && e.stderr.toString()) || e?.message || String(e)
       lastErr = msg.slice(0, 240)
-      console.error('[yt-dlp]', bin, lastErr)
+      console.error('[yt-dlp]', cmd, lastErr)
     }
   }
-  throw new Error(`yt-dlp fallo: ${lastErr}. En Termux: pkg install python && pip install -U yt-dlp`)
+  throw new Error(
+    `yt-dlp fallo: ${lastErr}. En Termux instala: pkg install yt-dlp ffmpeg -y`
+  )
 }
+
 
 function defaultDlHeaders(url) {
   const u = String(url)
