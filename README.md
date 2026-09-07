@@ -82,3 +82,20 @@ Incluye en main:
 
 Bot: https://t.me/LuffyYampiBot
 WhatsApp hermano: https://github.com/BerNardo77-bot/Luffy7
+
+---
+
+## Estado guardado (v1.4.3)
+
+En main:
+
+- Import de errText corregido (ya no ReferenceError)
+- /ytvideo prioriza yt-dlp; fallback Alyacore
+- Sigue redirects HTTP 302
+- NSFW completo (xnxx + interacciones)
+- Stickers, descargas sociales, menu
+- Errores con mensaje claro (no Error: undefined)
+
+Bot: https://t.me/LuffyYampiBot
+
+Si el token se filtro en un log: Revoke en BotFather y actualiza TELEGRAM_BOT_TOKEN.
