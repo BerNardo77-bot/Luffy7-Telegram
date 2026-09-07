@@ -79,7 +79,7 @@ export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
   const url = id.length === 11 && !id.includes('/') ? `https://www.youtube.com/watch?v=${id}` : videoUrlOrId
   const args = [
     '-f',
-    'bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480]/b',
+    'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst[height<=360]/b',
     '--merge-output-format',
     'mp4',
     '--no-playlist',
@@ -141,13 +141,33 @@ function apiKeys() {
 }
 
 /** Descarga a archivo en disco (no a RAM). Tope 2GB. */
+
+/** Sigue redirects 301/302/307 manualmente (algunos CDN no los sigue node-fetch bien). */
+async function fetchFollow(url, opts = {}, maxRedirects = 8) {
+  let current = url
+  for (let i = 0; i <= maxRedirects; i++) {
+    const res = await fetch(current, { ...opts, redirect: 'manual' })
+    if ([301, 302, 303, 307, 308].includes(res.status)) {
+      const loc = res.headers.get('location')
+      if (!loc) throw new Error(`HTTP ${res.status} sin Location`)
+      try {
+        if (res.body && typeof res.body.cancel === 'function') res.body.cancel()
+      } catch {}
+      current = new URL(loc, current).href
+      continue
+    }
+    return { res, finalUrl: current }
+  }
+  throw new Error('Demasiados redirects (302)')
+}
+
 export async function downloadToFile(url, destPath, {
   timeout = 1_800_000,
   headers = {},
   maxBytes = MAX_DOWNLOAD
 } = {}) {
   if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
-  const res = await fetch(url, {
+  const { res } = await fetchFollow(url, {
     headers: { ...defaultDlHeaders(url), ...headers },
     timeout
   })
@@ -224,7 +244,7 @@ export async function compressForTelegram(inputPath, maxSendBytes) {
 }
 
 export async function downloadBuffer(url, timeout = 180000) {
-  const res = await fetch(url, {
+  const { res } = await fetchFollow(url, {
     headers: defaultDlHeaders(url),
     timeout
   })
