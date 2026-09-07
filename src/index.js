@@ -141,8 +141,8 @@ async function handlePlay(ctx) {
   } catch (e) {
     console.error(e)
     await ctx.api
-      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + e.message)
-      .catch(() => ctx.reply(String(e.message)))
+      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e))
+      .catch(() => ctx.reply(errText(e)))
   } finally {
     safeUnlink(out)
   }
@@ -164,43 +164,52 @@ async function handleVideo(ctx) {
       status.message_id,
       'Video: ' + video.title + '\nObteniendo enlace...'
     )
-    const got = await getVideoLink(video.url, video.title)
-    let usedLink = got.dl || null
-
-    if (got.error || !got.dl) {
+    // 1) yt-dlp primero (mas fiable que URLs Alyacore que dan 302)
+    let usedLink = video.url
+    let got = { title: video.title }
+    let usedYtdlp = false
+    try {
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        'API fallo (' + (got.error || 'sin link') + '). Probando yt-dlp...'
+        'Bajando con yt-dlp (puede tardar)...'
       )
-      try {
-        await downloadYoutubeWithYtDlp(video.url || q, out)
-        usedLink = video.url
-      } catch (e) {
+      await downloadYoutubeWithYtDlp(video.url || q, out)
+      usedYtdlp = true
+    } catch (yterr) {
+      console.error('[ytvideo] yt-dlp', yterr)
+      await ctx.api.editMessageText(
+        ctx.chat.id,
+        status.message_id,
+        'yt-dlp fallo. Probando API Alyacore...'
+      ).catch(() => {})
+      got = await getVideoLink(video.url, video.title)
+      if (got.error || !got.dl) {
         return ctx.api.editMessageText(
           ctx.chat.id,
           status.message_id,
           'No pude bajar el video.\n' +
-            (got.error || '') +
+            errText(yterr) +
             '\n' +
-            (e.message || e) +
-            '\n\nTip Termux:\npkg install python\npip install -U yt-dlp'
+            (got.error || 'API sin link') +
+            '\n\nTip Termux:\npkg install python\npip install -U yt-dlp\n\nLink limpio:\n/ytvideo https://youtu.be/' +
+            (String(video.videoId || ''))
         )
       }
-    } else {
+      usedLink = got.dl
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        `Descargando a disco (tope ${mb(MAX_DOWNLOAD)} MB)...`
+        `Descargando API (tope ${mb(MAX_DOWNLOAD)} MB)...`
       )
       try {
         await downloadToFile(got.dl, out, { timeout: 1_800_000 })
       } catch (e) {
-        await ctx.api
-          .editMessageText(ctx.chat.id, status.message_id, 'Descarga directa fallo. Probando yt-dlp...')
-          .catch(() => {})
-        await downloadYoutubeWithYtDlp(video.url || q, out)
-        usedLink = video.url
+        return ctx.api.editMessageText(
+          ctx.chat.id,
+          status.message_id,
+          'Descarga fallo (¿302?).\n' + errText(e) + '\nInstala/actualiza yt-dlp.'
+        )
       }
     }
     const size = fs.statSync(out).size
@@ -208,8 +217,24 @@ async function handleVideo(ctx) {
     const head = Buffer.alloc(8)
     fs.readSync(fd, head, 0, 8, 0)
     fs.closeSync(fd)
-    if (head.slice(4, 8).toString() !== 'ftyp') {
+    const brand = head.slice(4, 8).toString()
+    if (brand !== 'ftyp' && !usedYtdlp) {
       return ctx.api.editMessageText(ctx.chat.id, status.message_id, 'La API no devolvio un MP4 valido.')
+    }
+    // si yt-dlp dejo webm/mkv, remux rapido a mp4
+    if (brand !== 'ftyp' && usedYtdlp) {
+      try {
+        const remuxed = out.replace(/\.mp4$/i, ') + '-remux.mp4'
+        const { execFile } = await import('child_process')
+        const { promisify } = await import('util')
+        const execFileAsync = promisify(execFile)
+        await execFileAsync('ffmpeg', ['-y', '-i', out, '-c', 'copy', '-movflags', '+faststart', remuxed], { timeout: 300000 })
+        if (fs.existsSync(remuxed) && fs.statSync(remuxed).size) {
+          fs.renameSync(remuxed, out)
+        }
+      } catch (re) {
+        console.error('[ytvideo] remux', re)
+      }
     }
     if (expected >= 600 && size < 5 * 1024 * 1024) {
       return ctx.api.editMessageText(
@@ -230,8 +255,8 @@ async function handleVideo(ctx) {
   } catch (e) {
     console.error(e)
     await ctx.api
-      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + e.message)
-      .catch(() => ctx.reply(String(e.message)))
+      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e))
+      .catch(() => ctx.reply(errText(e)))
   } finally {
     safeUnlink(out)
   }
@@ -356,8 +381,8 @@ async function handleXvideos(ctx) {
   } catch (e) {
     console.error(e)
     await ctx.api
-      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + e.message)
-      .catch(() => ctx.reply(String(e.message)))
+      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e))
+      .catch(() => ctx.reply(errText(e)))
   }
 }
 
@@ -372,8 +397,8 @@ async function handleDl(ctx) {
   } catch (e) {
     console.error(e)
     await ctx.api
-      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + e.message)
-      .catch(() => ctx.reply(String(e.message)))
+      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e))
+      .catch(() => ctx.reply(errText(e)))
   }
 }
 
@@ -414,7 +439,7 @@ bot.command(NSFW_INTERACTION_COMMANDS, handleNsfwInteraction)
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.4.1 arrancando...')
+console.log('Luffy7 Telegram v1.4.2 arrancando...')
 bot.start().then(() => {
   console.log(
   'Luffy7 Telegram online | download<=',
