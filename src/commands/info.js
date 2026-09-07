@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.3
+export const helpText = `⚓ Luffy7 Telegram v1.4
 
 Descargas a disco hasta ~2GB.
 Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
@@ -36,7 +36,29 @@ Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
 🔞 NSFW
 /danbooru /dbooru — tag
 /gelbooru /gbooru — tag
-/r34 /rule34 — tag
+/r34 /rule34 /rule — tag
+/xnxx — XNXX search o URL
+/anal /violar — interaction
+/cum /eyacular — interaction
+/undress /encuerar — interaction
+/fuck /coger — interaction
+/spank /nalgada — interaction
+/lickpussy /lameruncoño — interaction
+/fap /paja — interaction
+/grope — interaction
+/sixnine /69 — interaction
+/suckboobs /chupartetas — interaction
+/grabboobs — interaction
+/blowjob /mamar /bj — interaction
+/boobjob /rusa — interaction
+/yuri /tijeras — interaction
+/footjob — interaction
+/cummouth — interaction
+/cumshot — interaction
+/handjob — interaction
+/lickass /lamercullo — interaction
+/lickdick /lamerpolla — interaction
+(responde a un mensaje para apuntar a alguien)
 
 Uptime: ${'{uptime}'}
 `

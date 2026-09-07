@@ -126,6 +126,10 @@ function defaultDlHeaders(url) {
     headers.Referer = 'https://www.xvideos.com/'
     headers.Origin = 'https://www.xvideos.com'
   }
+  if (u.includes('xnxx') || u.includes('xnxx-cdn') || u.includes('xnxcdn')) {
+    headers.Referer = 'https://www.xnxx.com/'
+    headers.Origin = 'https://www.xnxx.com'
+  }
   return headers
 }
 
@@ -519,6 +523,132 @@ export async function getMediafire(pageUrl) {
   return { error: last }
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+function isTransientNetworkError(err) {
+  const code = err?.code || err?.errno || ''
+  const msg = String(err?.message || err || '')
+  return (
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    code === 'EAI_AGAIN' ||
+    /ECONNRESET|ETIMEDOUT|socket hang up|network/i.test(msg)
+  )
+}
+
+/** NSFW_ENABLED env opcional (default true). */
+export function isNsfwEnabled() {
+  const v = process.env.NSFW_ENABLED
+  if (v == null || String(v).trim() === '') return true
+  return !['0', 'false', 'no', 'off'].includes(String(v).trim().toLowerCase())
+}
+
+/**
+ * Alyacore NSFW interaction GIF/video.
+ * GET /nsfw/interaction?inter=&key= — retry 3x on ECONNRESET (como WhatsApp).
+ */
+export async function getNsfwInteraction(inter) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  const MAX_RETRIES = 3
+  let lastErr = null
+
+  for (const key of keys) {
+    const url = `${apiUrl}/nsfw/interaction?inter=${encodeURIComponent(inter)}&key=${encodeURIComponent(key)}`
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
+            Accept: 'application/json'
+          },
+          timeout: 45000
+        })
+        if (!response.ok) {
+          lastErr = new Error(`HTTP ${response.status}`)
+          if (response.status >= 500 && attempt < MAX_RETRIES) {
+            await sleep(800 * attempt)
+            continue
+          }
+          // probar siguiente key
+          break
+        }
+        const json = await response.json().catch(() => ({}))
+        if (json?.status && json?.result) {
+          return { url: json.result, status: true, message: json.message }
+        }
+        lastErr = new Error(json?.message || 'sin resultado')
+      } catch (e) {
+        lastErr = e
+        if (isTransientNetworkError(e) && attempt < MAX_RETRIES) {
+          console.error(`[nsfw/inter] reintento ${attempt}/${MAX_RETRIES}`, e.code || e.message)
+          await sleep(900 * attempt)
+          continue
+        }
+        // error no transitorio: probar siguiente key
+        break
+      }
+    }
+  }
+  return { error: lastErr?.message || String(lastErr || 'API NSFW no respondio') }
+}
+
+/** GET /nsfw/search/xnxx?query=&key= */
+export async function getXnxxSearch(query) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/nsfw/search/xnxx?query=${encodeURIComponent(query)}&key=${encodeURIComponent(key)}`
+      )
+      if (res?.status && res?.resultados?.length) return { results: res.resultados }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
+/**
+ * GET /nsfw/dl/xnxx?url=&key=
+ * Prefer resultado.result.download.low, fallback high.
+ */
+export async function getXnxxDownload(videoUrl) {
+  const { apiUrl } = getConfig()
+  const keys = apiKeys()
+  let last = 'Sin resultado'
+  for (const key of keys) {
+    try {
+      const res = await fetchJson(
+        `${apiUrl}/nsfw/dl/xnxx?url=${encodeURIComponent(videoUrl)}&key=${encodeURIComponent(key)}`
+      )
+      const dl = res?.resultado?.result?.download || res?.resultado?.download || res?.result?.download
+      const candidates = []
+      if (dl?.low) candidates.push({ quality: 'low', url: dl.low })
+      if (dl?.high) candidates.push({ quality: 'high', url: dl.high })
+      // otros posibles campos
+      if (!candidates.length && typeof dl === 'string') {
+        candidates.push({ quality: 'default', url: dl })
+      }
+      if (res?.status && candidates.length) {
+        return { candidates, title: res?.resultado?.result?.title || res?.resultado?.title, message: res.message }
+      }
+      last = res?.message || last
+    } catch (e) {
+      last = e.message || last
+    }
+  }
+  return { error: last }
+}
+
 /** Danbooru/Gelbooru Alyacore: la API suele devolver imagen binaria. */
 export async function getBooruImageUrl(kind, keyword) {
   const { apiUrl } = getConfig()
@@ -612,6 +742,7 @@ export function isDirectMediaUrl(text) {
   if (!/^https?:\/\//i.test(u)) return false
   if (/\.(mp4|m4v|webm|mkv|mp3|m4a|ogg)(\?|#|$)/i.test(u)) return true
   if (u.includes('xvideos-cdn.com') || u.includes('xhcdn.com')) return true
+  if (u.includes('xnxx') || u.includes('xnxcdn')) return true
   return false
 }
 

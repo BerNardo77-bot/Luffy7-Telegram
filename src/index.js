@@ -15,13 +15,21 @@ import {
   safeUnlink,
   mb,
   MAX_DOWNLOAD,
-  argText
+  argText,
+  isNsfwEnabled
 } from './api.js'
 import { handleSticker, handlePhotoCaption } from './commands/stickers.js'
 import { handleHelp, handlePing } from './commands/info.js'
 import { handleTranslate } from './commands/translate.js'
 import { createDownloadHandlers } from './commands/downloads.js'
-import { handleDanbooru, handleGelbooru, handleR34 } from './commands/nsfw.js'
+import {
+  handleDanbooru,
+  handleGelbooru,
+  handleR34,
+  handleNsfwInteraction,
+  NSFW_INTERACTION_COMMANDS,
+  createXnxxHandler
+} from './commands/nsfw.js'
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 if (!token) {
@@ -256,6 +264,7 @@ async function downloadAndSendMedia(ctx, mediaUrl, { title = 'video', status }) 
 }
 
 async function handleXvideos(ctx) {
+  if (!isNsfwEnabled()) return ctx.reply('🔞 NSFW desactivado (NSFW_ENABLED=false).')
   const q = argText(ctx)
   if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN')
   const status = await ctx.reply('Procesando XVideos...')
@@ -377,6 +386,8 @@ const {
   handleMediafire
 } = createDownloadHandlers(sendOrCompress)
 
+const handleXnxx = createXnxxHandler(sendOrCompress)
+
 bot.command(['start', 'help', 'menu'], handleHelp)
 bot.command(['ping', 'p'], handlePing)
 bot.command(['traducir', 'translate'], handleTranslate)
@@ -398,10 +409,12 @@ bot.command(['mediafire', 'mf'], handleMediafire)
 bot.command(['danbooru', 'dbooru'], handleDanbooru)
 bot.command(['gelbooru', 'gbooru'], handleGelbooru)
 bot.command(['r34', 'rule34', 'rule'], handleR34)
+bot.command(['xnxx'], handleXnxx)
+bot.command(NSFW_INTERACTION_COMMANDS, handleNsfwInteraction)
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.3.2 arrancando...')
+console.log('Luffy7 Telegram v1.4.0 arrancando...')
 bot.start().then(() => {
   console.log(
   'Luffy7 Telegram online | download<=',
