@@ -20,6 +20,12 @@ export function getConfig() {
   }
 }
 
+export function errText(e) {
+  if (e == null) return 'error desconocido'
+  if (typeof e === 'string') return e
+  return String(e.message || e.stderr || e.code || e)
+}
+
 export function mb(n) {
   return (Number(n) / 1024 / 1024).toFixed(1)
 }
@@ -76,43 +82,49 @@ export function normalizeYoutubeUrls(text) {
 /** Fallback Termux: yt-dlp baja MP4 a disco. */
 export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
   const id = extractYoutubeId(videoUrlOrId) || String(videoUrlOrId).trim()
-  const url = id.length === 11 && !id.includes('/') ? `https://www.youtube.com/watch?v=${id}` : videoUrlOrId
-  const args = [
-    '-f',
-    'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst[height<=360]/b',
-    '--merge-output-format',
-    'mp4',
-    '--no-playlist',
-    '-o',
-    destPath,
-    '--no-warnings',
-    url
+  const url =
+    id.length === 11 && !id.includes('/')
+      ? `https://www.youtube.com/watch?v=${id}`
+      : normalizeYoutubeUrls(videoUrlOrId)[0]
+
+  if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
+  const outTpl = destPath.replace(/\.mp4$/i, '') + '.%(ext)s'
+
+  const attempts = [
+    ['yt-dlp', ['-f', 'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst', '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]],
+    ['yt-dlp', ['-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]],
+    ['youtube-dl', ['-f', 'best[height<=360]/b', '--no-playlist', '-o', outTpl, url]]
   ]
-  try {
-    await execFileAsync('yt-dlp', args, { timeout: 1_200_000 })
-  } catch (e1) {
-    // binario alternativo
+
+  let lastErr = 'yt-dlp no disponible'
+  for (const [bin, args] of attempts) {
     try {
-      await execFileAsync('yt-dlp', ['-f', 'best[height<=360]/b', '--no-playlist', '-o', destPath, url], {
-        timeout: 1_200_000
-      })
-    } catch (e2) {
-      throw new Error(
-        `yt-dlp fallo: ${(e2?.stderr || e2?.message || e1?.message || e1).toString().slice(0, 200)}. Instala: pkg install yt-dlp`
-      )
+      await execFileAsync(bin, args, { timeout: 1_200_000, maxBuffer: 10 * 1024 * 1024 })
+      // localizar archivo generado
+      const base = destPath.replace(/\.mp4$/i, '')
+      const candidates = [destPath, base + '.mp4', base + '.webm', base + '.mkv']
+      let found = candidates.find((p) => fs.existsSync(p) && fs.statSync(p).size > 0)
+      if (!found) {
+        // buscar por prefijo en TMP_DIR
+        const name = path.basename(base)
+        const hit = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(name) && /\.(mp4|webm|mkv)$/i.test(f))
+        if (hit) found = path.join(TMP_DIR, hit)
+      }
+      if (!found) throw new Error('yt-dlp no genero archivo')
+      if (found !== destPath) {
+        try { fs.renameSync(found, destPath) } catch {
+          fs.copyFileSync(found, destPath)
+          safeUnlink(found)
+        }
+      }
+      return fs.statSync(destPath).size
+    } catch (e) {
+      const msg = (e?.stderr && e.stderr.toString()) || e?.message || String(e)
+      lastErr = msg.slice(0, 240)
+      console.error('[yt-dlp]', bin, lastErr)
     }
   }
-  if (!fs.existsSync(destPath) || !fs.statSync(destPath).size) {
-    // yt-dlp a veces agrega extension
-    const alt = destPath + '.mp4'
-    if (fs.existsSync(alt) && fs.statSync(alt).size) {
-      fs.renameSync(alt, destPath)
-    }
-  }
-  if (!fs.existsSync(destPath) || !fs.statSync(destPath).size) {
-    throw new Error('yt-dlp no genero el archivo')
-  }
-  return fs.statSync(destPath).size
+  throw new Error(`yt-dlp fallo: ${lastErr}. En Termux: pkg install python && pip install -U yt-dlp`)
 }
 
 function defaultDlHeaders(url) {
@@ -143,19 +155,32 @@ function apiKeys() {
 /** Descarga a archivo en disco (no a RAM). Tope 2GB. */
 
 /** Sigue redirects 301/302/307 manualmente (algunos CDN no los sigue node-fetch bien). */
-async function fetchFollow(url, opts = {}, maxRedirects = 8) {
+async function fetchFollow(url, opts = {}, maxRedirects = 10) {
+  // 1) Intento automatico
+  try {
+    const res = await fetch(url, { ...opts, redirect: 'follow' })
+    if (res.ok || (res.status >= 200 && res.status < 400)) {
+      // si igual quedo en 3xx raro, cae al manual
+      if (res.status < 300) return { res, finalUrl: url }
+    }
+  } catch (e) {
+    // sigue al manual
+  }
+
+  // 2) Manual 301/302/303/307/308
   let current = url
   for (let i = 0; i <= maxRedirects; i++) {
     const res = await fetch(current, { ...opts, redirect: 'manual' })
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const loc = res.headers.get('location')
-      if (!loc) throw new Error(`HTTP ${res.status} sin Location`)
+      if (!loc) throw new Error(`Redirect ${res.status} sin Location`)
       try {
         if (res.body && typeof res.body.cancel === 'function') res.body.cancel()
       } catch {}
       current = new URL(loc, current).href
       continue
     }
+    if (!res.ok) throw new Error(`Descarga HTTP ${res.status}`)
     return { res, finalUrl: current }
   }
   throw new Error('Demasiados redirects (302)')
