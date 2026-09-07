@@ -1,8 +1,8 @@
 {
   "name": "luffy7-telegram",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": false,
-  "description": "Bot Telegram Luffy7: YouTube, TikTok, IG, FB, Spotify, MediaFire, stickers, NSFW, descarga 2GB, comprime ~50MB",
+  "description": "Luffy7 Telegram: YouTube TikTok IG NSFW xnxx interactions, 2GB disk, 302 redirects, yt-dlp fallback",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
