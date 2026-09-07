@@ -99,3 +99,12 @@ En main:
 Bot: https://t.me/LuffyYampiBot
 
 Si el token se filtro en un log: Revoke en BotFather y actualiza TELEGRAM_BOT_TOKEN.
+
+---
+
+## Estado guardado (v1.4.4)
+
+- Busca yt-dlp en PATH, ~/.local/bin y Termux prefix
+- Fallback: python -m yt_dlp
+- En Termux: pkg install yt-dlp ffmpeg -y
+- Resto de v1.4.3 (NSFW, 302, errText, ytvideo)
