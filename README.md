@@ -66,3 +66,19 @@ Tambien necesitas `ffmpeg` para la compresion >50MB.
         nsfw.js
 
 `downloadToFile` **siempre** prefiere `body.pipe` (fix Termux PassThrough / `Readable.fromWeb`).
+
+---
+
+## Estado guardado (v1.4.1)
+
+Incluye en main:
+
+- NSFW completo: danbooru, gelbooru, r34, xvideos, xnxx, interacciones (cum, anal, fuck, etc.)
+- Stickers, TikTok, IG, FB, Spotify, MediaFire, YouTube
+- Descarga a disco hasta ~2GB; envio cloud ~50MB con compresion
+- Sigue redirects HTTP 302 en descargas
+- Limpieza de links YouTube (?si=) y fallback yt-dlp
+- NSFW_ENABLED (default true)
+
+Bot: https://t.me/LuffyYampiBot
+WhatsApp hermano: https://github.com/BerNardo77-bot/Luffy7
