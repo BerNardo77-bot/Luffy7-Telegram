@@ -108,3 +108,14 @@ Si el token se filtro en un log: Revoke en BotFather y actualiza TELEGRAM_BOT_TO
 - Fallback: python -m yt_dlp
 - En Termux: pkg install yt-dlp ffmpeg -y
 - Resto de v1.4.3 (NSFW, 302, errText, ytvideo)
+
+---
+
+## Estado guardado (v1.4.5)
+
+En `main`, confirmado en Termux:
+
+- Al arrancar borra webhook viejo y escribe `online como @usuario`
+- Polling activo de @LuffyYampiBot
+- El usuario confirmo que /start y el bot responden
+- Si se queda solo en "arrancando..." sin "online", el proceso aun no conecto
