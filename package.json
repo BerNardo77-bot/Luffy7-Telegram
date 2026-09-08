@@ -1,6 +1,6 @@
 {
   "name": "luffy7-telegram",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "private": false,
   "description": "Luffy7 Telegram v1.4.4: NSFW, yt-dlp Termux paths, 302 redirects, stickers",
   "type": "module",
