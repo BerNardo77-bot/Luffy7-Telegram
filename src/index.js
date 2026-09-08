@@ -443,18 +443,36 @@ bot.command(NSFW_INTERACTION_COMMANDS, handleNsfwInteraction)
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.4.4 arrancando...')
-bot.start().then(() => {
+console.log('Luffy7 Telegram v1.4.5 arrancando...')
+
+async function goOnline() {
+  try {
+    await bot.api.deleteWebhook({ drop_pending_updates: false })
+  } catch (e) {
+    console.error('No se pudo borrar webhook:', e?.description || e?.message || e)
+  }
+  const me = await bot.api.getMe()
+  console.log('Luffy7 Telegram online como @' + me.username)
   console.log(
-  'Luffy7 Telegram online | download<=',
-  mb(MAX_DOWNLOAD),
-  'MB | send<=',
-  mb(MAX_SEND),
-  'MB | localApi=',
-  useLocalApi
+    'download<=',
+    mb(MAX_DOWNLOAD),
+    'MB | send<=',
+    mb(MAX_SEND),
+    'MB | localApi=',
+    useLocalApi
   )
   console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify ...')
-}).catch((e) => {
-  console.error('No arranco el bot:', e)
+  console.log('Si mandas /start y no responde, otro proceso usa el mismo token.')
+  await bot.start({
+    onStart: (info) => console.log('Polling activo:', info.username)
+  })
+}
+
+goOnline().catch((e) => {
+  const code = e?.error_code || e?.error?.error_code
+  console.error('No arranco el bot:', e?.description || e?.message || e)
+  if (code === 409) {
+    console.error('409: otro Termux o Railway ya esta usando este token. Cerra ese y reintenta.')
+  }
   process.exit(1)
 })
