@@ -31,6 +31,25 @@ import {
   NSFW_INTERACTION_COMMANDS,
   createXnxxHandler
 } from './commands/nsfw.js'
+import { bumpCount } from './store.js'
+import {
+  handleBalance, handleDaily, handleDeposit, handleWithdraw, handleWork, handleCrime,
+  handleSlut, handleFish, handleHunt, handleMine, handleRitual, handleDungeon,
+  handleSteal, handleGiveCoins, handleFlip, handleSlot, handleRoulette, handlePpt,
+  handleMath, handleResponder, handleBoard, handleCount, handleTopCount, handleWait,
+  handleRoll, handleClaim, handleHarem, handleWinfo, handleSerieInfo, handleSerieList,
+  handleGinfo, handleSell, handleBuyChar, handleGiveChar, handleDelChar, handleWaifuBoard,
+  handleVote, handleTrade, handleProfile, handleLevel, handleSetDesc, handleDelDesc,
+  handleSetBirth, handleDelBirth, handleSetGenre, handleDelGenre, handleSetHobby,
+  handleDelHobby, handleMarry, handleDivorce, handleIa, handleWiki, handleImagen,
+  handlePin, handleYtSearch, handleTtSearch, handleApk, handleAms, handleAnime,
+  ANIME_COMMANDS, handleStatus, handleInfobot, handleInvite, handleSuggest,
+  handleRpg, handleGachaToggle, handleWelcomeToggle, handleByeToggle, handleSetWelcome,
+  handleSetBye, handleKick, handlePromote, handleDemote, handleLink, handleGp,
+  handleWarn, handleWarns, handleDelWarn, handleSetWarnLimit, handleSetGpName,
+  handleSetGpDesc, handleOpen, handleCloset, handleHidetag, handleClear, handlePfp,
+  waOnly, onNewMember, onLeftMember
+} from './commands/world.js'
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 if (!token) {
@@ -48,6 +67,12 @@ const botOpts = useLocalApi
   : undefined
 
 const bot = new Bot(token, botOpts)
+
+bot.use(async (ctx, next) => {
+  if (ctx.message && ctx.from && !ctx.from.is_bot) bumpCount(ctx)
+  await next()
+})
+
 
 async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId, fallbackLink }) {
   let pathToSend = filePath
@@ -423,13 +448,13 @@ bot.command(['traducir', 'translate'], handleTranslate)
 bot.command(['sticker', 's'], handleSticker)
 bot.on('message:photo', handlePhotoCaption)
 
-bot.command(['play', 'mp3'], handlePlay)
-bot.command(['ytvideo', 'mp4', 'playvideo'], handleVideo)
+bot.command(['play', 'mp3', 'ytmp3', 'ytaudio', 'playaudio'], handlePlay)
+bot.command(['ytvideo', 'mp4', 'playvideo', 'play2', 'ytmp4'], handleVideo)
 bot.command(['xvideos', 'xv'], handleXvideos)
 bot.command(['dl', 'get'], handleDl)
 
-bot.command(['tiktok', 'tt'], handleTiktok)
-bot.command(['tiktokmp3', 'ttmp3', 'ttaudio', 'tiktokaudio'], handleTiktokMp3)
+bot.command(['tiktok', 'tt', 'tk', 'tiktokdl'], handleTiktok)
+bot.command(['tiktokmp3', 'ttmp3', 'ttaudio', 'tiktokaudio', 'playtt'], handleTiktokMp3)
 bot.command(['ig', 'instagram', 'reel'], handleInstagram)
 bot.command(['fb', 'facebook'], handleFacebook)
 bot.command(['spotify', 'sp'], handleSpotify)
@@ -441,9 +466,106 @@ bot.command(['r34', 'rule34', 'rule'], handleR34)
 bot.command(['xnxx'], handleXnxx)
 bot.command(NSFW_INTERACTION_COMMANDS, handleNsfwInteraction)
 
+bot.command(['balance', 'bal'], handleBalance)
+bot.command(['daily'], handleDaily)
+bot.command(['dep', 'deposit', 'd'], handleDeposit)
+bot.command(['withdraw', 'with'], handleWithdraw)
+bot.command(['w', 'work'], handleWork)
+bot.command(['crime'], handleCrime)
+bot.command(['slut'], handleSlut)
+bot.command(['pescar', 'fish'], handleFish)
+bot.command(['cazar', 'hunt'], handleHunt)
+bot.command(['mine'], handleMine)
+bot.command(['ritual'], handleRitual)
+bot.command(['dungeon', 'mazmorra'], handleDungeon)
+bot.command(['steal', 'rob', 'robar'], handleSteal)
+bot.command(['givecoins', 'pay', 'coinsgive'], handleGiveCoins)
+bot.command(['cf', 'flip', 'coinflip'], handleFlip)
+bot.command(['slot'], handleSlot)
+bot.command(['rt', 'roulette', 'ruleta'], handleRoulette)
+bot.command(['ppt'], handlePpt)
+bot.command(['math', 'matematicas'], handleMath)
+bot.command(['responder'], handleResponder)
+bot.command(['economyboard', 'eboard', 'baltop'], handleBoard)
+bot.command(['count', 'mensajes', 'messages', 'msgcount'], handleCount)
+bot.command(['topcount', 'topmensajes', 'topmsgcount', 'topmessages'], handleTopCount)
+bot.command(['waittimes', 'cooldowns', 'economyinfo', 'einfo'], handleWait)
+
+bot.command(['rollwaifu', 'roll', 'rw', 'rf'], handleRoll)
+bot.command(['claim', 'c'], handleClaim)
+bot.command(['harem', 'miswaifus', 'claims'], handleHarem)
+bot.command(['winfo', 'charinfo', 'cinfo'], handleWinfo)
+bot.command(['charimage', 'wimage', 'cimage'], handleWinfo)
+bot.command(['serieinfo', 'animeinfo', 'ainfo'], handleSerieInfo)
+bot.command(['slist', 'serielist', 'animelist'], handleSerieList)
+bot.command(['gachainfo', 'ginfo', 'infogacha'], handleGinfo)
+bot.command(['sell', 'vender'], handleSell)
+bot.command(['buycharacter', 'buychar', 'buyc'], handleBuyChar)
+bot.command(['givechar', 'givewaifu', 'regalar'], handleGiveChar)
+bot.command(['delchar', 'delwaifu', 'deletechar'], handleDelChar)
+bot.command(['waifusboard', 'waifustop', 'topwaifus'], handleWaifuBoard)
+bot.command(['vote', 'votar'], handleVote)
+bot.command(['trade', 'cambiar', 'accepttrade', 'aceptarintercambio', 'giveallharem', 'haremshop', 'tiendawaifus', 'wshop', 'removesale', 'removerventa'], handleTrade)
+
+bot.command(['profile', 'perfil'], handleProfile)
+bot.command(['levelup', 'level', 'lvl'], handleLevel)
+bot.command(['setdescription', 'setdesc'], handleSetDesc)
+bot.command(['deldescription', 'deldesc'], handleDelDesc)
+bot.command(['setbirth'], handleSetBirth)
+bot.command(['delbirth'], handleDelBirth)
+bot.command(['setgenre'], handleSetGenre)
+bot.command(['delgenre'], handleDelGenre)
+bot.command(['setpasatiempo', 'sethobby'], handleSetHobby)
+bot.command(['delpasatiempo', 'removehobby'], handleDelHobby)
+bot.command(['marry'], handleMarry)
+bot.command(['divorce'], handleDivorce)
+
+bot.command(['ia', 'chatgpt'], handleIa)
+bot.command(['wiki', 'wikipedia'], handleWiki)
+bot.command(['imagen', 'img', 'image'], handleImagen)
+bot.command(['pinterest', 'pin'], handlePin)
+bot.command(['ytsearch', 'search'], handleYtSearch)
+bot.command(['tiktoksearch', 'ttsearch', 'tts'], handleTtSearch)
+bot.command(['aptoide', 'apk', 'apkdl'], handleApk)
+bot.command(['ams', 'applemusicsearch'], handleAms)
+bot.command(ANIME_COMMANDS, handleAnime)
+
+bot.command(['status'], handleStatus)
+bot.command(['infobot', 'infosocket', 'info'], handleInfobot)
+bot.command(['invite', 'invitar'], handleInvite)
+bot.command(['report', 'reporte', 'sug', 'suggest'], handleSuggest)
+bot.command(['rpg', 'economy', 'economia'], handleRpg)
+bot.command(['gacha'], handleGachaToggle)
+bot.command(['welcome', 'bienvenidas'], handleWelcomeToggle)
+bot.command(['bye', 'despedidas', 'goodbye'], handleByeToggle)
+bot.command(['setwelcome'], handleSetWelcome)
+bot.command(['setbye'], handleSetBye)
+bot.command(['kick'], handleKick)
+bot.command(['promote'], handlePromote)
+bot.command(['demote'], handleDemote)
+bot.command(['link'], handleLink)
+bot.command(['gp', 'groupinfo'], handleGp)
+bot.command(['warn'], handleWarn)
+bot.command(['warns'], handleWarns)
+bot.command(['delwarn'], handleDelWarn)
+bot.command(['setwarnlimit'], handleSetWarnLimit)
+bot.command(['setgpname'], handleSetGpName)
+bot.command(['setgpdesc'], handleSetGpDesc)
+bot.command(['open'], handleOpen)
+bot.command(['closet'], handleCloset)
+bot.command(['hidetag', 'tag'], handleHidetag)
+bot.command(['clear'], handleClear)
+bot.command(['pfp', 'getpic'], handlePfp)
+bot.command(['bot'], handleStatus)
+
+bot.on('message:new_chat_members', onNewMember)
+bot.on('message:left_chat_member', onLeftMember)
+
+bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave', 'logout', 'reload', 'self', 'subbot', 'code', 'qr', 'antilink', 'antienlaces', 'antistatus', 'antiestados', 'adminonly', 'onlyadmin', 'reveal', 'viewonce', 'ver', 'newpack', 'delpack', 'getpack', 'pack', 'packlist', 'addsticker', 'delsticker', 'setbotname', 'setname', 'setbotprefix', 'setusername'], waOnly)
+
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.4.5 arrancando...')
+console.log('Luffy7 Telegram v1.5.0 arrancando...')
 
 async function goOnline() {
   try {

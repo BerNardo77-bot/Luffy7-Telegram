@@ -1,5 +1,7 @@
 # Luffy7 Telegram
 
+Version **1.5.0** — comandos de WhatsApp Luffy7 en Telegram: economia, gacha, perfil, busqueda, anime, admin de grupo. Economia y gacha van activos. Los de sesion WhatsApp (QR, eval, packs) responden que no aplican.
+
 Bot hermano WhatsApp: https://github.com/BerNardo77-bot/Luffy7
 
 Version **1.3.0** — descargas a disco hasta 2GB. Envio Telegram cloud ~50MB con compresion ffmpeg (ultrafast 360p). Stickers con **sharp** (webp 512x512).

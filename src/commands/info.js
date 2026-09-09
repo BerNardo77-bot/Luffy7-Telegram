@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.4
+export const helpText = `⚓ Luffy7 Telegram v1.5
 
 Descargas a disco hasta ~2GB.
 Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
@@ -59,6 +59,27 @@ Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
 /lickass /lamercullo — interaction
 /lickdick /lamerpolla — interaction
 (responde a un mensaje para apuntar a alguien)
+
+
+🎮 Economia (on por defecto)
+/daily /bal /work /crime /fish /hunt /mine /steal /pay
+/dep /withdraw /flip /slot /rt /ppt /math /eboard /einfo
+
+🃏 Gacha
+/rw /claim /harem /winfo /sell /givechar /slist
+
+👤 Perfil
+/perfil /level /setdesc /setgenre /sethobby /marry /divorce
+
+🔍 Busqueda
+/ia /wiki /imagen /pin /ytsearch /ttsearch /apk /ams
+
+🎭 Anime
+/hug /kiss /pat /slap /dance /cry y alias (/abrazo no, usa /hug /beso /morder)
+
+👥 Grupo (bot admin)
+/kick /promote /demote /warn /link /gp /open /closet
+/rpg /gacha /welcome enable|disable
 
 Uptime: ${'{uptime}'}
 `
