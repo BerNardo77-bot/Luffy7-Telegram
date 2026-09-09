@@ -95,6 +95,20 @@ bot.use(async (ctx, next) => {
   }
 })
 
+// Respuestas basicas forzadas (no depender del router de command)
+bot.on('message:text', async (ctx, next) => {
+  const raw = String(ctx.message?.text || '')
+  const cmd = raw.split(/\s+/)[0].split('@')[0].toLowerCase()
+  console.log('[cmd]', cmd)
+  if (cmd === '/ping' || cmd === '/p') {
+    return handlePing(ctx)
+  }
+  if (cmd === '/start' || cmd === '/help' || cmd === '/menu') {
+    return handleHelp(ctx)
+  }
+  await next()
+})
+
 
 async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId, fallbackLink }) {
   let pathToSend = filePath
@@ -627,7 +641,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.8 arrancando...')
+console.log('Luffy7 Telegram v1.5.9 arrancando...')
 
 async function goOnline() {
   try {

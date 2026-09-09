@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.5.8
+export const helpText = `⚓ Luffy7 Telegram v1.5.9
 
 Descargas a disco hasta ~2GB.
 Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
@@ -95,14 +95,21 @@ export async function handleHelp(ctx) {
 }
 
 export async function handlePing(ctx) {
+  console.log('[ping] enter')
   const start = Date.now()
-  const sent = await ctx.reply('❏ Pong...')
-  const latency = Date.now() - start
-  await ctx.api
-    .editMessageText(
-      ctx.chat.id,
-      sent.message_id,
-      `✿ Pong!\n> Tiempo ⴵ ${latency}ms\n> Uptime ${uptimeStr()}`
-    )
-    .catch(() => {})
+  try {
+    const sent = await ctx.reply('Pong...')
+    const latency = Date.now() - start
+    console.log('[ping] replied', latency, 'ms')
+    await ctx.api
+      .editMessageText(
+        ctx.chat.id,
+        sent.message_id,
+        `Pong!\nTiempo: ${latency}ms\nUptime: ${uptimeStr()}`
+      )
+      .catch(() => {})
+  } catch (e) {
+    console.error('[ping] fail', e)
+    try { await ctx.reply('Pong') } catch (e2) { console.error('[ping] fail2', e2) }
+  }
 }
