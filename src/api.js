@@ -796,14 +796,78 @@ export async function getRule34Image(tag) {
   return { url: pick }
 }
 
+const LANG_NAMES = {
+  es: 'es', espanol: 'es', spanish: 'es', castellano: 'es',
+  en: 'en', ingles: 'en', english: 'en',
+  pt: 'pt', portugues: 'pt',
+  fr: 'fr', frances: 'fr',
+  it: 'it', italiano: 'it',
+  de: 'de', aleman: 'de',
+  ja: 'ja', japones: 'ja',
+  ko: 'ko', coreano: 'ko',
+  zh: 'zh', chino: 'zh',
+  ru: 'ru', ruso: 'ru',
+  ar: 'ar', arabe: 'ar'
+}
+
+export function normalizeLang(code) {
+  const k = String(code || 'es').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return LANG_NAMES[k] || (/^[a-z]{2}$/.test(k) ? k : 'es')
+}
+
+function splitChunks(text, size = 350) {
+  const parts = []
+  let rest = String(text || '').trim()
+  while (rest.length > size) {
+    let cut = rest.lastIndexOf('\n', size)
+    if (cut < 80) cut = rest.lastIndexOf(' ', size)
+    if (cut < 80) cut = size
+    parts.push(rest.slice(0, cut).trim())
+    rest = rest.slice(cut).trim()
+  }
+  if (rest) parts.push(rest)
+  return parts
+}
+
+async function lingvaChunk(text, lang) {
+  const url = 'https://lingva.ml/api/v1/auto/' + lang + '/' + encodeURIComponent(text)
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Luffy7-Telegram', Accept: 'application/json' }
+  })
+  const json = await res.json()
+  if (!json?.translation) throw new Error('sin traduccion')
+  return String(json.translation)
+}
+
+async function memoryChunk(text, lang) {
+  const url =
+    'https://api.mymemory.translated.net/get?q=' +
+    encodeURIComponent(text) +
+    '&langpair=autodetect|' +
+    lang
+  const res = await fetch(url, { headers: { 'User-Agent': 'Luffy7-Telegram' } })
+  const json = await res.json()
+  const out = json?.responseData?.translatedText
+  if (!out) throw new Error('sin traduccion')
+  return String(out)
+}
+
 export async function translateText(text, language = 'es') {
-  const url = `https://api.delirius.store/tools/translate?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}`
+  const lang = normalizeLang(language)
+  const chunks = splitChunks(text, 350)
+  if (!chunks.length) return { error: 'Falta el texto' }
   try {
-    const res = await fetchJson(url)
-    if (res?.data) return { text: res.data }
-    return { error: res?.message || 'No se pudo traducir' }
-  } catch (e) {
-    return { error: e.message || 'Error de traduccion' }
+    const out = []
+    for (const part of chunks) out.push(await lingvaChunk(part, lang))
+    return { text: out.join('\n') }
+  } catch (e1) {
+    try {
+      const out = []
+      for (const part of splitChunks(text, 400)) out.push(await memoryChunk(part, lang))
+      return { text: out.join('\n') }
+    } catch (e2) {
+      return { error: 'No se pudo traducir. Intenta de nuevo.' }
+    }
   }
 }
 

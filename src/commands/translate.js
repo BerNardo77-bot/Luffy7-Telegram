@@ -1,4 +1,4 @@
-import { translateText, argText } from '../api.js'
+import { translateText, argText, normalizeLang } from '../api.js'
 
 export async function handleTranslate(ctx) {
   const raw = argText(ctx)
@@ -9,11 +9,20 @@ export async function handleTranslate(ctx) {
   }
 
   const parts = raw.split(/\s+/)
-  // /traducir en Hello world  OR  /traducir Hello (default es)
   let language = 'es'
   let text = raw
-  if (parts.length >= 2 && /^[a-z]{2}(-[a-z]{2})?$/i.test(parts[0])) {
-    language = parts[0].toLowerCase()
+  const first = parts[0] || ''
+  const plain = first.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const known = new Set([
+    'es', 'espanol', 'spanish', 'castellano',
+    'en', 'ingles', 'english',
+    'pt', 'portugues', 'fr', 'frances',
+    'it', 'italiano', 'de', 'aleman',
+    'ja', 'japones', 'ko', 'coreano',
+    'zh', 'chino', 'ru', 'ruso', 'ar', 'arabe'
+  ])
+  if (parts.length >= 2 && (known.has(plain) || /^[a-z]{2}$/i.test(first))) {
+    language = normalizeLang(first)
     text = parts.slice(1).join(' ')
   }
 
