@@ -175,9 +175,9 @@ async function handlePlay(ctx) {
   }
 }
 
-async function handleVideo(ctx) {
+async function handleVideo(ctx, quality = 'fit') {
   const q = argText(ctx)
-  if (!q) return ctx.reply('Uso: /ytvideo nombre o link de YouTube')
+  if (!q) return ctx.reply(quality === 'hd' ? 'Uso: /ytvideohd nombre o link de YouTube' : 'Uso: /ytvideo nombre o link de YouTube')
   const status = await ctx.reply('Buscando video...')
   const out = tmpPath(`${Date.now()}-video.mp4`)
   try {
@@ -199,9 +199,9 @@ async function handleVideo(ctx) {
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        'Bajando con yt-dlp (puede tardar)...'
+        quality === 'hd' ? 'Alta calidad (1080p). Bajando con yt-dlp...' : 'Bajando con yt-dlp (puede tardar)...'
       )
-      await downloadYoutubeWithYtDlp(video.url || q, out)
+      await downloadYoutubeWithYtDlp(video.url || q, out, quality)
       usedYtdlp = true
     } catch (yterr) {
       console.error('[ytvideo] yt-dlp', yterr)
@@ -278,7 +278,7 @@ async function handleVideo(ctx) {
     await sendOrCompress(ctx, out, {
       kind: 'video',
       fileName: name,
-      caption: got.title || video.title,
+      caption: (got.title || video.title) + (quality === 'hd' ? ' (HD)' : ''),
       statusId: status.message_id,
       fallbackLink: usedLink || video.url
     })
@@ -441,6 +441,10 @@ const {
   handleMediafire
 } = createDownloadHandlers(sendOrCompress)
 
+async function handleVideoHd(ctx) {
+  return handleVideo(ctx, 'hd')
+}
+
 const handleXnxx = createXnxxHandler(sendOrCompress)
 
 bot.command(['start', 'help', 'menu'], handleHelp)
@@ -451,6 +455,7 @@ bot.on('message:photo', handlePhotoCaption)
 
 bot.command(['play', 'mp3', 'ytmp3', 'ytaudio', 'playaudio'], handlePlay)
 bot.command(['ytvideo', 'mp4', 'playvideo', 'play2', 'ytmp4'], handleVideo)
+bot.command(['ytvideohd', 'mp4hd', 'hdvideo', 'playvideohd'], handleVideoHd)
 bot.command(['xvideos', 'xv'], handleXvideos)
 bot.command(['dl', 'get'], handleDl)
 
@@ -566,7 +571,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.5.2 arrancando...')
+console.log('Luffy7 Telegram v1.5.3 arrancando...')
 
 async function goOnline() {
   try {

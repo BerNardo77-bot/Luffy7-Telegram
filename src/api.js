@@ -98,7 +98,7 @@ export function resolveYtDlpBin() {
   return null
 }
 
-export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
+export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath, quality = 'fit') {
   const id = extractYoutubeId(videoUrlOrId) || String(videoUrlOrId).trim()
   const url =
     id.length === 11 && !id.includes('/')
@@ -109,18 +109,17 @@ export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
   const outTpl = destPath.replace(/\.mp4$/i, '') + '.%(ext)s'
   const bin = resolveYtDlpBin()
 
-  // Preferir formatos chicos para Telegram cloud (~50MB)
-  const fmtSmall = 'bv*[height<=240][ext=mp4]+ba[ext=m4a]/b[height<=240]/bv*[height<=360]+ba/worst'
-  const fmt360 = 'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst'
+  const fmtHd = 'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/best'
+  const fmtFit = 'bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720]/bv*[height<=1080]+ba/best'
+  const fmt = quality === 'hd' ? fmtHd : fmtFit
   const attempts = []
   if (bin) {
-    attempts.push([bin, ['-f', fmtSmall, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
-    attempts.push([bin, ['-f', fmt360, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
-    attempts.push([bin, ['-f', 'best[height<=240]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+    attempts.push([bin, ['-f', fmt, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+    attempts.push([bin, ['-f', 'best[height<=1080]/best', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
   }
   // Fallbacks Termux / pip
-  attempts.push(['python', ['-m', 'yt_dlp', '-f', 'best[height<=240]/worst', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
-  attempts.push(['python3', ['-m', 'yt_dlp', '-f', 'best[height<=240]/worst', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+  attempts.push(['python', ['-m', 'yt_dlp', '-f', fmt, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+  attempts.push(['python3', ['-m', 'yt_dlp', '-f', fmt, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
 
   let lastErr = 'yt-dlp no encontrado'
   for (const [cmd, args] of attempts) {
