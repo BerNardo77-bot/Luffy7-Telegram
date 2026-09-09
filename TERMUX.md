@@ -2,7 +2,7 @@
 
 Bot: @LuffyYampiBot
 Repo: https://github.com/BerNardo77-bot/Luffy7-Telegram
-Version: 1.5.9
+Version: 1.5.11
 
 Usa Termux de F-Droid, no el de Play Store.
 
@@ -90,7 +90,7 @@ npm install --omit=optional
 node src/index.js
 ```
 
-En el log debe salir Luffy7 Telegram v1.5.9 y online como @usuario.
+En el log debe salir Luffy7 Telegram v1.5.11 y online como @usuario.
 
 ## 6. Prueba
 
