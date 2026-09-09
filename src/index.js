@@ -627,7 +627,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.7 arrancando...')
+console.log('Luffy7 Telegram v1.5.8 arrancando...')
 
 async function goOnline() {
   try {
@@ -647,17 +647,34 @@ async function goOnline() {
   )
   console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify ...')
   console.log('Si mandas /start y no responde, otro proceso usa el mismo token.')
+  const keepAlive = setInterval(() => {
+    console.log('[vivo]', new Date().toISOString(), 'esperando mensajes...')
+  }, 30000)
+
   await bot.start({
     drop_pending_updates: true,
-    onStart: (info) => console.log('Polling activo:', info.username)
+    allowed_updates: ['message', 'callback_query', 'edited_message'],
+    onStart: (info) => {
+      console.log('Polling activo:', info.username)
+      console.log('Deja esta ventana abierta. Si aparece $ el bot ya se cerro.')
+    }
   })
+  clearInterval(keepAlive)
+  console.log('Polling terminado. El bot ya no escucha.')
 }
 
 goOnline().catch((e) => {
-  const code = e?.error_code || e?.error?.error_code
+  const code = e?.error_code || e?.error?.error_code || e?.error?.error_code
   console.error('No arranco el bot:', e?.description || e?.message || e)
-  if (code === 409) {
-    console.error('409: otro Termux o Railway ya esta usando este token. Cerra ese y reintenta.')
+  if (code === 409 || String(e?.message || e).includes('409')) {
+    console.error('409: otro Termux, celular o Railway ya usa este token. Cierra ese y reintenta.')
   }
   process.exit(1)
+})
+
+process.on('unhandledRejection', (e) => {
+  console.error('unhandledRejection', e)
+})
+process.on('uncaughtException', (e) => {
+  console.error('uncaughtException', e)
 })
