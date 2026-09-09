@@ -321,8 +321,8 @@ async function downloadAndSendMedia(ctx, mediaUrl, { title = 'video', status }) 
 async function handleXvideos(ctx) {
   if (!isNsfwEnabled()) return ctx.reply('🔞 NSFW desactivado (NSFW_ENABLED=false).')
   const q = argText(ctx)
-  if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN')
-  const status = await ctx.reply('Procesando XVideos...')
+  if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN\nAlta calidad primero. Si no cabe, comprime a ~50 MB.')
+  const status = await ctx.reply('Procesando XVideos (alta calidad)...')
 
   try {
     if (isDirectMediaUrl(q)) {
@@ -364,6 +364,7 @@ async function handleXvideos(ctx) {
 
     const out = tmpPath(`${Date.now()}-xvideos.mp4`)
     let usedLink = null
+    let usedQuality = ''
     let lastErr = ''
     try {
       for (const c of got.candidates) {
@@ -371,10 +372,11 @@ async function handleXvideos(ctx) {
           await ctx.api.editMessageText(
             ctx.chat.id,
             status.message_id,
-            `Bajando calidad ${c.quality}...`
+            `Bajando calidad ${c.quality} (HD preferido)...`
           )
           await downloadToFile(c.url, out, { timeout: 1_800_000 })
           usedLink = c.url
+          usedQuality = c.quality
           break
         } catch (e) {
           lastErr = e.message || String(e)
@@ -401,7 +403,7 @@ async function handleXvideos(ctx) {
       await sendOrCompress(ctx, out, {
         kind: 'video',
         fileName: 'xvideos.mp4',
-        caption: title,
+        caption: title + (usedQuality === 'high' ? ' (HD)' : usedQuality ? ` (${usedQuality})` : ''),
         statusId: status.message_id,
         fallbackLink: usedLink
       })
@@ -571,7 +573,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.5.3 arrancando...')
+console.log('Luffy7 Telegram v1.5.4 arrancando...')
 
 async function goOnline() {
   try {

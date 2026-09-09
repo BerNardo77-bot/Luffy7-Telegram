@@ -410,12 +410,19 @@ export async function getVideoLink(videoUrl, title) {
   return { error: last, urlsTried: urls }
 }
 
-function pickXvideosCandidates(resultado) {
+function pickXvideosCandidates(resultado, prefer = 'high') {
   const videos = resultado?.videos || resultado?.result?.videos || {}
   const list = []
-  // Preferir low/360 primero para Telegram cloud
-  if (videos.low) list.push({ quality: 'low', url: videos.low })
-  if (videos.high) list.push({ quality: 'high', url: videos.high })
+  // Preferir alta calidad; si falla, el handler prueba la siguiente
+  const high = videos.high || videos.HD || videos.hd || videos['1080p'] || videos['720p']
+  const low = videos.low || videos.SD || videos.sd || videos['360p'] || videos['240p']
+  if (prefer === 'high') {
+    if (high) list.push({ quality: 'high', url: high })
+    if (low) list.push({ quality: 'low', url: low })
+  } else {
+    if (low) list.push({ quality: 'low', url: low })
+    if (high) list.push({ quality: 'high', url: high })
+  }
   const legacy = resultado?.result?.url || resultado?.url || resultado?.dl
   if (legacy) list.push({ quality: 'legacy', url: legacy })
   return list
@@ -430,7 +437,7 @@ export async function getXvideosDownload(videoUrl) {
       const res = await fetchJson(
         `${apiUrl}/nsfw/dl/xvideos?url=${encodeURIComponent(videoUrl)}&key=${key}`
       )
-      const candidates = pickXvideosCandidates(res?.resultado)
+      const candidates = pickXvideosCandidates(res?.resultado, 'high')
       if (res?.status && candidates.length) return { candidates, message: res.message }
       last = res?.message || last
     } catch (e) {
