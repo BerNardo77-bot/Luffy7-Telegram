@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.5.5
+export const helpText = `⚓ Luffy7 Telegram v1.5.6
 
 Descargas a disco hasta ~2GB.
 Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
@@ -86,7 +86,12 @@ Uptime: ${'{uptime}'}
 `
 
 export async function handleHelp(ctx) {
-  await ctx.reply(helpText.replace('{uptime}', uptimeStr()))
+  try {
+    await ctx.reply(helpText.replace('{uptime}', uptimeStr()))
+  } catch (e) {
+    console.error('[menu]', e)
+    await ctx.reply('Menu listo. Prueba /ping. Si no responde, cierra otros procesos del bot.').catch(() => {})
+  }
 }
 
 export async function handlePing(ctx) {

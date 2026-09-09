@@ -70,7 +70,11 @@ const botOpts = useLocalApi
 const bot = new Bot(token, botOpts)
 
 bot.use(async (ctx, next) => {
-  if (ctx.message && ctx.from && !ctx.from.is_bot) bumpCount(ctx)
+  try {
+    if (ctx.message && ctx.from && !ctx.from.is_bot) bumpCount(ctx)
+  } catch (e) {
+    console.error('[count]', e?.message || e)
+  }
   await next()
 })
 
@@ -606,7 +610,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.5.5 arrancando...')
+console.log('Luffy7 Telegram v1.5.6 arrancando...')
 
 async function goOnline() {
   try {
