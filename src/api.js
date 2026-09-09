@@ -410,7 +410,7 @@ export async function getVideoLink(videoUrl, title) {
   return { error: last, urlsTried: urls }
 }
 
-function pickXvideosCandidates(resultado, prefer = '720') {
+function pickXvideosCandidates(resultado, prefer = 'high') {
   const videos = resultado?.videos || resultado?.result?.videos || {}
   const list = []
   const seen = new Set()
@@ -420,12 +420,18 @@ function pickXvideosCandidates(resultado, prefer = '720') {
     list.push({ quality, url })
   }
 
-  // Orden pedido: 720p primero. En Alyacore, high suele ser ~720p.
+  // Alta calidad primero (1080/high), luego 720, luego low
+  const p1080 = videos['1080p'] || videos['1080'] || videos.p1080
+  const high = videos.high || videos.HD || videos.hd
   const p720 = videos['720p'] || videos['720'] || videos.p720
-  const high = videos.high || videos.HD || videos.hd || videos['1080p'] || videos['1080']
   const low = videos.low || videos.SD || videos.sd || videos['360p'] || videos['240p']
 
-  if (prefer === '720' || prefer === 'high') {
+  if (prefer === 'high' || prefer === 'hd') {
+    push('1080p', p1080)
+    push('high', high)
+    push('720p', p720)
+    push('low', low)
+  } else if (prefer === '720') {
     push('720p', p720)
     push('high', high)
     push('low', low)
@@ -433,6 +439,7 @@ function pickXvideosCandidates(resultado, prefer = '720') {
     push('low', low)
     push('720p', p720)
     push('high', high)
+    push('1080p', p1080)
   }
 
   const legacy = resultado?.result?.url || resultado?.url || resultado?.dl
@@ -496,7 +503,7 @@ export async function getXvideosDownload(videoUrl) {
       const res = await fetchJson(
         `${apiUrl}/nsfw/dl/xvideos?url=${encodeURIComponent(videoUrl)}&key=${key}`
       )
-      const candidates = pickXvideosCandidates(res?.resultado, '720')
+      const candidates = pickXvideosCandidates(res?.resultado, 'high')
       if (res?.status && candidates.length) return { candidates, message: res.message }
       last = res?.message || last
     } catch (e) {

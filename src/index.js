@@ -10,7 +10,6 @@ import {
   downloadToFile,
   downloadYoutubeWithYtDlp,
   compressForTelegram,
-  ensureMaxHeight,
   isDirectMediaUrl,
   tmpPath,
   safeUnlink,
@@ -357,8 +356,8 @@ async function downloadAndSendMedia(ctx, mediaUrl, { title = 'video', status }) 
 async function handleXvideos(ctx) {
   if (!isNsfwEnabled()) return ctx.reply('🔞 NSFW desactivado (NSFW_ENABLED=false).')
   const q = argText(ctx)
-  if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN\nBaja a 720p. Si no cabe, comprime a ~50 MB.')
-  const status = await ctx.reply('Procesando XVideos (720p)...')
+  if (!q) return ctx.reply('Uso: /xvideos nombre, URL de XVideos, o link .mp4 CDN\nAlta calidad primero. Si no cabe, comprime a ~50 MB.')
+  const status = await ctx.reply('Procesando XVideos (HD)...')
 
   try {
     if (isDirectMediaUrl(q)) {
@@ -370,18 +369,16 @@ async function handleXvideos(ctx) {
           `Bajando a disco (tope ${mb(MAX_DOWNLOAD)} MB)...`
         )
         await downloadToFile(q, out, { timeout: 1_800_000 })
-        await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Ajustando a 720p...')
-        await ensureMaxHeight(out, 720)
         const size = fs.statSync(out).size
         await ctx.api.editMessageText(
           ctx.chat.id,
           status.message_id,
-          `${mb(size)} MB en 720p. Preparando envio...`
+          `${mb(size)} MB (HD). Preparando envio...`
         )
         await sendOrCompress(ctx, out, {
           kind: 'video',
           fileName: 'xvideos.mp4',
-          caption: 'xvideos (720p)',
+          caption: 'xvideos (HD)',
           statusId: status.message_id,
           fallbackLink: q
         })
@@ -433,7 +430,7 @@ async function handleXvideos(ctx) {
           await ctx.api.editMessageText(
             ctx.chat.id,
             status.message_id,
-            `Bajando calidad ${c.quality} (objetivo 720p)...`
+            `Bajando calidad ${c.quality} (HD preferido)...`
           )
           await downloadToFile(c.url, out, { timeout: 1_800_000 })
           usedLink = c.url
@@ -458,20 +455,13 @@ async function handleXvideos(ctx) {
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        `Descargado ${mb(size)} MB. Ajustando a 720p...`
-      )
-      await ensureMaxHeight(out, 720)
-      size = fs.statSync(out).size
-      await ctx.api.editMessageText(
-        ctx.chat.id,
-        status.message_id,
-        `${mb(size)} MB en 720p. Preparando envio...`
+        `Descargado ${mb(size)} MB (${usedQuality || 'HD'}). Preparando envio...`
       )
 
       await sendOrCompress(ctx, out, {
         kind: 'video',
         fileName: 'xvideos.mp4',
-        caption: title + ' (720p)',
+        caption: title + (usedQuality ? ` (${usedQuality})` : ' (HD)'),
         statusId: status.message_id,
         fallbackLink: usedLink
       })
@@ -641,7 +631,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.9 arrancando...')
+console.log('Luffy7 Telegram v1.5.10 arrancando...')
 
 async function goOnline() {
   try {
