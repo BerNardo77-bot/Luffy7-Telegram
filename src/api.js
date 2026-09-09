@@ -109,14 +109,18 @@ export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath) {
   const outTpl = destPath.replace(/\.mp4$/i, '') + '.%(ext)s'
   const bin = resolveYtDlpBin()
 
+  // Preferir formatos chicos para Telegram cloud (~50MB)
+  const fmtSmall = 'bv*[height<=240][ext=mp4]+ba[ext=m4a]/b[height<=240]/bv*[height<=360]+ba/worst'
+  const fmt360 = 'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst'
   const attempts = []
   if (bin) {
-    attempts.push([bin, ['-f', 'bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360]/worst', '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
-    attempts.push([bin, ['-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+    attempts.push([bin, ['-f', fmtSmall, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+    attempts.push([bin, ['-f', fmt360, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+    attempts.push([bin, ['-f', 'best[height<=240]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
   }
   // Fallbacks Termux / pip
-  attempts.push(['python', ['-m', 'yt_dlp', '-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
-  attempts.push(['python3', ['-m', 'yt_dlp', '-f', 'best[height<=360]/b', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+  attempts.push(['python', ['-m', 'yt_dlp', '-f', 'best[height<=240]/worst', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
+  attempts.push(['python3', ['-m', 'yt_dlp', '-f', 'best[height<=240]/worst', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
 
   let lastErr = 'yt-dlp no encontrado'
   for (const [cmd, args] of attempts) {
@@ -256,21 +260,57 @@ export async function downloadToFile(url, destPath, {
   return st.size
 }
 
-/** Comprime MP4 rapido para Telegram cloud (~50MB). Un pase agresivo primero. */
+async function probeDurationSec(inputPath) {
+  try {
+    const { stdout } = await execFileAsync(
+      'ffprobe',
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', inputPath],
+      { timeout: 30000 }
+    )
+    const n = Number(String(stdout).trim())
+    return Number.isFinite(n) && n > 0 ? n : 0
+  } catch {
+    return 0
+  }
+}
+
+/** Comprime MP4 para Telegram cloud (~50MB) con bitrate segun duracion. */
 export async function compressForTelegram(inputPath, maxSendBytes) {
+  if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
   const outFile = path.join(TMP_DIR, `${Date.now()}-tg-out.mp4`)
-  // ultrafast + 360p primero = mucho mas rapido en Termux/celular
-  const attempts = [
-    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '30', '-vf', "scale='min(360,iw)':-2", '-c:a', 'aac', '-b:a', '64k', '-ac', '1', '-movflags', '+faststart', '-threads', '0', outFile],
-    ['-y', '-i', inputPath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '34', '-vf', "scale='min(360,iw)':-2", '-c:a', 'aac', '-b:a', '48k', '-ac', '1', '-movflags', '+faststart', '-threads', '0', outFile]
+  const target = Math.floor(maxSendBytes * 0.92)
+  const duration = await probeDurationSec(inputPath)
+  const audioKbps = 48
+  let videoKbps = 280
+  if (duration > 1) {
+    const totalKbps = Math.floor((target * 8) / duration / 1000)
+    videoKbps = Math.max(70, totalKbps - audioKbps)
+  }
+
+  const ladders = [
+    { h: 360, v: videoKbps, a: 48 },
+    { h: 240, v: Math.max(60, Math.floor(videoKbps * 0.75)), a: 40 },
+    { h: 180, v: Math.max(50, Math.floor(videoKbps * 0.55)), a: 32 },
+    { h: 144, v: Math.max(40, Math.floor(videoKbps * 0.4)), a: 24 }
   ]
 
   let bestPath = null
   let bestSize = Infinity
 
-  for (const args of attempts) {
+  for (const step of ladders) {
+    const args = [
+      '-y', '-i', inputPath,
+      '-map', '0:v:0', '-map', '0:a:0?',
+      '-c:v', 'libx264', '-preset', 'veryfast',
+      '-b:v', `${step.v}k`, '-maxrate', `${step.v}k`, '-bufsize', `${step.v * 2}k`,
+      '-vf', `scale='min(${step.h},iw)':-2`,
+      '-c:a', 'aac', '-b:a', `${step.a}k`, '-ac', '1',
+      '-movflags', '+faststart', '-threads', '0',
+      outFile
+    ]
     try {
-      await execFileAsync('ffmpeg', args, { timeout: 900000 })
+      console.error(`[ffmpeg] ${step.h}p @ ${step.v}k (dur ${Number(duration).toFixed(1)}s)`)
+      await execFileAsync('ffmpeg', args, { timeout: 1_200_000 })
       if (!fs.existsSync(outFile)) continue
       const size = fs.statSync(outFile).size
       if (!size) continue

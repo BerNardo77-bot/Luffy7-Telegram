@@ -101,6 +101,7 @@ async function sendOrCompress(ctx, filePath, { kind, fileName, caption, statusId
       `Archivo ${mb(fs.statSync(filePath).size)} MB` +
       (compressedPath ? ` (comprimido ${mb(size)} MB)` : '') +
       `.\nTelegram cloud solo envia ~50 MB.\n` +
+      `Si es muy largo, prueba /play (audio) o abre el link.\n` +
       (fallbackLink ? `\nEnlace directo:\n${fallbackLink}` : '')
     if (statusId) {
       await ctx.api.editMessageText(ctx.chat.id, statusId, msg).catch(() => ctx.reply(msg))
@@ -565,7 +566,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err))
 
-console.log('Luffy7 Telegram v1.5.1 arrancando...')
+console.log('Luffy7 Telegram v1.5.2 arrancando...')
 
 async function goOnline() {
   try {
