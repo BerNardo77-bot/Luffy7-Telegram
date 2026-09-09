@@ -334,7 +334,7 @@ export function createXnxxHandler(sendOrCompress) {
               .editMessageText(
                 ctx.chat.id,
                 status.message_id,
-                `Bajando calidad ${c.quality} (tope ${mb(MAX_DOWNLOAD)} MB)...`
+                `Bajando calidad ${c.quality} HD preferido (tope ${mb(MAX_DOWNLOAD)} MB)...`
               )
               .catch(() => {})
             await downloadToFile(c.url, out, { timeout: 1_800_000 })

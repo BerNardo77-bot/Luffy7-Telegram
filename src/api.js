@@ -98,7 +98,7 @@ export function resolveYtDlpBin() {
   return null
 }
 
-export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath, quality = 'fit') {
+export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath, quality = 'hd') {
   const id = extractYoutubeId(videoUrlOrId) || String(videoUrlOrId).trim()
   const url =
     id.length === 11 && !id.includes('/')
@@ -109,9 +109,10 @@ export async function downloadYoutubeWithYtDlp(videoUrlOrId, destPath, quality =
   const outTpl = destPath.replace(/\.mp4$/i, '') + '.%(ext)s'
   const bin = resolveYtDlpBin()
 
+  // Por defecto alta calidad (hasta 1080p). fit queda como opcion baja.
   const fmtHd = 'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/best'
   const fmtFit = 'bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720]/bv*[height<=1080]+ba/best'
-  const fmt = quality === 'hd' ? fmtHd : fmtFit
+  const fmt = quality === 'fit' ? fmtFit : fmtHd
   const attempts = []
   if (bin) {
     attempts.push([bin, ['-f', fmt, '--merge-output-format', 'mp4', '--no-playlist', '--no-warnings', '-o', outTpl, url]])
@@ -385,7 +386,7 @@ export async function getVideoLink(videoUrl, title) {
   let last = 'Sin resultado'
   const endpoints = []
   for (const u of urls) {
-    for (const quality of ['360', '480', '240', '720', 'auto']) {
+    for (const quality of ['1080', '720', 'auto', '480', '360', '240']) {
       endpoints.push((key) =>
         `${apiUrl}/dl/youtubeplayv2?query=${encodeURIComponent(u)}&type=mp4&quality=${quality}&key=${key}`
       )
@@ -801,7 +802,7 @@ export async function getXnxxSearch(query) {
 
 /**
  * GET /nsfw/dl/xnxx?url=&key=
- * Prefer resultado.result.download.low, fallback high.
+ * Prefer resultado.result.download.high, fallback low.
  */
 export async function getXnxxDownload(videoUrl) {
   const { apiUrl } = getConfig()
@@ -814,8 +815,8 @@ export async function getXnxxDownload(videoUrl) {
       )
       const dl = res?.resultado?.result?.download || res?.resultado?.download || res?.result?.download
       const candidates = []
-      if (dl?.low) candidates.push({ quality: 'low', url: dl.low })
       if (dl?.high) candidates.push({ quality: 'high', url: dl.high })
+      if (dl?.low) candidates.push({ quality: 'low', url: dl.low })
       // otros posibles campos
       if (!candidates.length && typeof dl === 'string') {
         candidates.push({ quality: 'default', url: dl })

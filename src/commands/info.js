@@ -8,15 +8,14 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.5.10
+export const helpText = `⚓ Luffy7 Telegram v1.5.11
 
 Descargas a disco hasta ~2GB.
-Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
+Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 
-📥 Descargas
+📥 Descargas (HD)
 /play /mp3 — audio YouTube
-/ytvideo /mp4 — video YouTube (cabe en Telegram)
-/ytvideohd /mp4hd — video YouTube en alta calidad (1080p)
+/ytvideo /mp4 /ytvideohd /mp4hd — video YouTube 1080p
 /tiktok /tt — TikTok video
 /tiktokmp3 /ttmp3 — TikTok audio
 /ig /instagram — Instagram
@@ -24,7 +23,8 @@ Si pesa >50MB, comprime (ffmpeg ultrafast 360p) y lo envía.
 /spotify /sp — Spotify
 /mediafire /mf — MediaFire
 /dl /get — link directo .mp4/.mp3
-/xvideos /xv — XVideos en alta calidad
+/xvideos /xv — XVideos HD
+/xnxx — XNXX HD
 
 🎨 Stickers
 /sticker /s — responde a una foto, o envía foto con caption /sticker

@@ -120,7 +120,7 @@ export function createDownloadHandlers(sendOrCompress) {
             await sendOrCompress(ctx, out, {
               kind: 'video',
               fileName: 'instagram.mp4',
-              caption: i === 0 ? 'Instagram' : undefined,
+              caption: i === 0 ? 'Instagram (HD)' : undefined,
               statusId: i === items.length - 1 ? status.message_id : undefined,
               fallbackLink: media.url
             })
@@ -169,7 +169,7 @@ export function createDownloadHandlers(sendOrCompress) {
       await sendOrCompress(ctx, out, {
         kind: 'video',
         fileName: 'fb.mp4',
-        caption: got.title || 'Facebook',
+        caption: (got.title || 'Facebook') + ' (HD)',
         statusId: status.message_id,
         fallbackLink: got.binaryEndpoint ? undefined : got.dl
       })

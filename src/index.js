@@ -210,9 +210,9 @@ async function handlePlay(ctx) {
   }
 }
 
-async function handleVideo(ctx, quality = 'fit') {
+async function handleVideo(ctx, quality = 'hd') {
   const q = argText(ctx)
-  if (!q) return ctx.reply(quality === 'hd' ? 'Uso: /ytvideohd nombre o link de YouTube' : 'Uso: /ytvideo nombre o link de YouTube')
+  if (!q) return ctx.reply('Uso: /ytvideo o /ytvideohd nombre o link de YouTube (alta calidad)')
   const status = await ctx.reply('Buscando video...')
   const out = tmpPath(`${Date.now()}-video.mp4`)
   try {
@@ -234,7 +234,7 @@ async function handleVideo(ctx, quality = 'fit') {
       await ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        quality === 'hd' ? 'Alta calidad (1080p). Bajando con yt-dlp...' : 'Bajando con yt-dlp (puede tardar)...'
+        'Alta calidad (1080p). Bajando con yt-dlp...'
       )
       await downloadYoutubeWithYtDlp(video.url || q, out, quality)
       usedYtdlp = true
@@ -313,7 +313,7 @@ async function handleVideo(ctx, quality = 'fit') {
     await sendOrCompress(ctx, out, {
       kind: 'video',
       fileName: name,
-      caption: (got.title || video.title) + (quality === 'hd' ? ' (HD)' : ''),
+      caption: (got.title || video.title) + ' (HD)',
       statusId: status.message_id,
       fallbackLink: usedLink || video.url
     })
@@ -631,7 +631,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.10 arrancando...')
+console.log('Luffy7 Telegram v1.5.11 arrancando...')
 
 async function goOnline() {
   try {

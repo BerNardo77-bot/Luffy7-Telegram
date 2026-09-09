@@ -1,6 +1,6 @@
 # Luffy7 Telegram
 
-Version **1.5.10** — bot respondiendo: /ping /menu forzados; comandos invalidos (69, acentos) limpiados; polling con log `[msg]`.
+Version **1.5.11** — bot respondiendo: /ping /menu forzados; comandos invalidos (69, acentos) limpiados; polling con log `[msg]`.
 
 Version **1.5.5** — /xvideos y /xv a 720p.
 
