@@ -1,6 +1,12 @@
 # Luffy7 Telegram
 
-Version **1.5.9** — /traducir ya no usa el servicio caido. Acepta es o espanol.
+Version **1.5.9** — bot respondiendo: /ping /menu forzados; comandos invalidos (69, acentos) limpiados; polling con log `[msg]`.
+
+Version **1.5.5** — /xvideos y /xv a 720p.
+
+Version **1.5.3** — /ytvideohd alta calidad.
+
+Version **1.5.1** — /traducir sin api.delirius.store. Acepta es o espanol.
 
 Version **1.5.0** — comandos de WhatsApp Luffy7 en Telegram: economia, gacha, perfil, busqueda, anime, admin de grupo. Economia y gacha van activos. Los de sesion WhatsApp (QR, eval, packs) responden que no aplican.
 
