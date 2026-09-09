@@ -410,22 +410,81 @@ export async function getVideoLink(videoUrl, title) {
   return { error: last, urlsTried: urls }
 }
 
-function pickXvideosCandidates(resultado, prefer = 'high') {
+function pickXvideosCandidates(resultado, prefer = '720') {
   const videos = resultado?.videos || resultado?.result?.videos || {}
   const list = []
-  // Preferir alta calidad; si falla, el handler prueba la siguiente
-  const high = videos.high || videos.HD || videos.hd || videos['1080p'] || videos['720p']
-  const low = videos.low || videos.SD || videos.sd || videos['360p'] || videos['240p']
-  if (prefer === 'high') {
-    if (high) list.push({ quality: 'high', url: high })
-    if (low) list.push({ quality: 'low', url: low })
-  } else {
-    if (low) list.push({ quality: 'low', url: low })
-    if (high) list.push({ quality: 'high', url: high })
+  const seen = new Set()
+  const push = (quality, url) => {
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    list.push({ quality, url })
   }
+
+  // Orden pedido: 720p primero. En Alyacore, high suele ser ~720p.
+  const p720 = videos['720p'] || videos['720'] || videos.p720
+  const high = videos.high || videos.HD || videos.hd || videos['1080p'] || videos['1080']
+  const low = videos.low || videos.SD || videos.sd || videos['360p'] || videos['240p']
+
+  if (prefer === '720' || prefer === 'high') {
+    push('720p', p720)
+    push('high', high)
+    push('low', low)
+  } else {
+    push('low', low)
+    push('720p', p720)
+    push('high', high)
+  }
+
   const legacy = resultado?.result?.url || resultado?.url || resultado?.dl
-  if (legacy) list.push({ quality: 'legacy', url: legacy })
+  push('legacy', legacy)
   return list
+}
+
+/** Si el video es mas alto que maxH, lo baja a maxH (720p). */
+export async function ensureMaxHeight(inputPath, maxH = 720) {
+  try {
+    const { stdout } = await execFileAsync(
+      'ffprobe',
+      [
+        '-v', 'error',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=height',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        inputPath
+      ],
+      { timeout: 30000 }
+    )
+    const h = Number(String(stdout).trim())
+    if (!Number.isFinite(h) || h <= maxH) return inputPath
+
+    if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
+    const out = path.join(TMP_DIR, `${Date.now()}-${maxH}p.mp4`)
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-y', '-i', inputPath,
+        '-map', '0:v:0', '-map', '0:a:0?',
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+        '-vf', `scale='min(${maxH},iw)':-2`,
+        '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart', '-threads', '0',
+        out
+      ],
+      { timeout: 1_200_000 }
+    )
+    if (fs.existsSync(out) && fs.statSync(out).size > 0) {
+      try {
+        fs.renameSync(out, inputPath)
+      } catch {
+        fs.copyFileSync(out, inputPath)
+        safeUnlink(out)
+      }
+    }
+    return inputPath
+  } catch (e) {
+    console.error('[ensureMaxHeight]', e?.message || e)
+    return inputPath
+  }
 }
 
 export async function getXvideosDownload(videoUrl) {
@@ -437,7 +496,7 @@ export async function getXvideosDownload(videoUrl) {
       const res = await fetchJson(
         `${apiUrl}/nsfw/dl/xvideos?url=${encodeURIComponent(videoUrl)}&key=${key}`
       )
-      const candidates = pickXvideosCandidates(res?.resultado, 'high')
+      const candidates = pickXvideosCandidates(res?.resultado, '720')
       if (res?.status && candidates.length) return { candidates, message: res.message }
       last = res?.message || last
     } catch (e) {
