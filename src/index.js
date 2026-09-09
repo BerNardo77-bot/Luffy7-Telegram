@@ -71,11 +71,28 @@ const bot = new Bot(token, botOpts)
 
 bot.use(async (ctx, next) => {
   try {
+    const text = ctx.message?.text || ctx.message?.caption || ''
+    if (text || ctx.update?.update_id) {
+      console.log(
+        '[msg]',
+        ctx.update?.update_id,
+        ctx.chat?.type,
+        ctx.from?.id,
+        String(text).slice(0, 80)
+      )
+    }
+  } catch {}
+  try {
     if (ctx.message && ctx.from && !ctx.from.is_bot) bumpCount(ctx)
   } catch (e) {
     console.error('[count]', e?.message || e)
   }
-  await next()
+  try {
+    await next()
+  } catch (e) {
+    console.error('[handler]', e)
+    throw e
+  }
 })
 
 
@@ -608,13 +625,13 @@ bot.on('message:left_chat_member', onLeftMember)
 
 bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave', 'logout', 'reload', 'self', 'subbot', 'code', 'qr', 'antilink', 'antienlaces', 'antistatus', 'antiestados', 'adminonly', 'onlyadmin', 'reveal', 'viewonce', 'ver', 'newpack', 'delpack', 'getpack', 'pack', 'packlist', 'addsticker', 'delsticker', 'setbotname', 'setname', 'setbotprefix', 'setusername'], waOnly)
 
-bot.catch((err) => console.error('Bot error', err))
+bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.6 arrancando...')
+console.log('Luffy7 Telegram v1.5.7 arrancando...')
 
 async function goOnline() {
   try {
-    await bot.api.deleteWebhook({ drop_pending_updates: false })
+    await bot.api.deleteWebhook({ drop_pending_updates: true })
   } catch (e) {
     console.error('No se pudo borrar webhook:', e?.description || e?.message || e)
   }
@@ -631,6 +648,7 @@ async function goOnline() {
   console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify ...')
   console.log('Si mandas /start y no responde, otro proceso usa el mismo token.')
   await bot.start({
+    drop_pending_updates: true,
     onStart: (info) => console.log('Polling activo:', info.username)
   })
 }
