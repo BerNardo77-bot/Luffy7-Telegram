@@ -1,6 +1,6 @@
 # Luffy7 Telegram
 
-Version **1.5.12** — IA completa como WhatsApp: /ia /gemini /deepseek /grok /nano.
+Version **1.5.13** — fix /nano (router forzado + fallback Pollinations). — IA completa como WhatsApp: /ia /gemini /deepseek /grok /nano.
 
 Version **1.5.11** — todas las descargas en alta calidad (YouTube, TikTok, IG, FB, XVideos, XNXX). Si pesan >50MB, comprimen para Telegram.
 

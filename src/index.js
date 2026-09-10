@@ -112,6 +112,26 @@ bot.on('message:text', async (ctx, next) => {
   if (cmd === '/start' || cmd === '/help' || cmd === '/menu') {
     return handleHelp(ctx)
   }
+  if (cmd === '/ia' || cmd === '/chatgpt' || cmd === '/gpt') {
+    console.log('[ai] force ia')
+    return handleIa(ctx)
+  }
+  if (cmd === '/gemini' || cmd === '/geminis') {
+    console.log('[ai] force gemini')
+    return handleGemini(ctx)
+  }
+  if (cmd === '/deepseek' || cmd === '/ds') {
+    console.log('[ai] force deepseek')
+    return handleDeepseek(ctx)
+  }
+  if (cmd === '/grok') {
+    console.log('[ai] force grok')
+    return handleGrok(ctx)
+  }
+  if (cmd === '/nano' || cmd === '/nanobanana') {
+    console.log('[ai] force nano')
+    return handleNano(ctx)
+  }
   await next()
 })
 
@@ -518,7 +538,15 @@ bot.command(['start', 'help', 'menu'], handleHelp)
 bot.command(['ping', 'p'], handlePing)
 bot.command(['traducir', 'translate'], handleTranslate)
 bot.command(['sticker', 's'], handleSticker)
-bot.on('message:photo', handlePhotoCaption)
+bot.on('message:photo', async (ctx, next) => {
+  const cap = String(ctx.message?.caption || '')
+  const cmd = cap.split(/\s+/)[0].split('@')[0].toLowerCase()
+  if (cmd === '/nano' || cmd === '/nanobanana') {
+    console.log('[ai] force nano caption')
+    return handleNano(ctx)
+  }
+  return handlePhotoCaption(ctx, next)
+})
 
 bot.command(['play', 'mp3', 'ytmp3', 'ytaudio', 'playaudio'], handlePlay)
 bot.command(['ytvideo', 'mp4', 'playvideo', 'play2', 'ytmp4'], handleVideo)

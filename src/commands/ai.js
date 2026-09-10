@@ -167,12 +167,14 @@ async function fetchEditBuffer(imageUrl, prompt) {
 }
 
 async function fetchTextToImage(prompt) {
+  // 1) Omega NanoBanana Pro
   try {
     const res = await fetch(`${OMEGA_TXT}?prompt=${encodeURIComponent(prompt)}`, {
-      signal: AbortSignal.timeout(120000)
+      signal: AbortSignal.timeout(20000)
     })
     const json = await res.json().catch(() => ({}))
     const out = json?.image || json?.url || json?.result || json?.data?.image
+    console.log('[nano] omega-txt status', res.status, Boolean(out))
     if (typeof out === 'string' && /^https?:\/\//i.test(out)) {
       const img = await fetch(out, { signal: AbortSignal.timeout(60000) })
       if (img.ok) {
@@ -183,38 +185,71 @@ async function fetchTextToImage(prompt) {
   } catch (e) {
     console.error('[nano] omega-txt', e?.message || e)
   }
+
+  // 2) Pollinations (texto -> imagen, fiable)
+  try {
+    const url =
+      'https://image.pollinations.ai/prompt/' +
+      encodeURIComponent(prompt + ', high quality') +
+      '?width=768&height=768&nologo=true&safe=false'
+    const res = await fetch(url, { signal: AbortSignal.timeout(90000) })
+    console.log('[nano] pollinations', res.status)
+    if (res.ok) {
+      const ib = Buffer.from(await res.arrayBuffer())
+      if (ib.length > 256 && (ib[0] === 0xff || ib[0] === 0x89)) return ib
+    }
+  } catch (e) {
+    console.error('[nano] pollinations', e?.message || e)
+  }
   return null
 }
 
 export async function handleNano(ctx) {
-  const prompt = argText(ctx)
+  console.log('[nano] enter', Boolean(ctx.message?.reply_to_message?.photo), Boolean(ctx.message?.photo))
+  let prompt = argText(ctx)
+  // caption: /nano prompt
+  if (!prompt && ctx.message?.caption) {
+    const parts = String(ctx.message.caption).trim().split(/\s+/)
+    prompt = parts.slice(1).join(' ').trim()
+  }
   if (!prompt) {
     return ctx.reply(
-      'Uso: responde a una *foto* con /nano <descripción>\nEjemplo: /nano hazla estilo anime\nAlias: /nanobanana\nSin foto: genera desde el texto.'
+      'Uso: responde a una foto con /nano <descripcion>\nEjemplo: /nano hazla estilo anime\nAlias: /nanobanana\nSin foto: genera desde el texto.'
     )
   }
 
-  const status = await ctx.reply('✎ NanoBanana trabajando...')
+  let status
+  try {
+    status = await ctx.reply('NanoBanana trabajando...')
+  } catch (e) {
+    console.error('[nano] reply status failed', e)
+    return
+  }
+
   try {
     const photoBuf = await downloadTelegramPhoto(ctx)
     let result = null
 
     if (photoBuf?.length) {
+      console.log('[nano] photo bytes', photoBuf.length)
       const uploaded = await uploadToUguu(photoBuf)
+      console.log('[nano] uguu', uploaded)
       if (!uploaded) {
         return ctx.api.editMessageText(
           ctx.chat.id,
           status.message_id,
-          '✎ No pude subir la imagen para editarla.'
+          'No pude subir la imagen para editarla.'
         )
       }
       result = await fetchEditBuffer(uploaded, prompt)
     } else {
-      await ctx.api.editMessageText(
-        ctx.chat.id,
-        status.message_id,
-        '✎ No hay imagen citada; generando desde el prompt...'
-      )
+      await ctx.api
+        .editMessageText(
+          ctx.chat.id,
+          status.message_id,
+          'No hay imagen citada; generando desde el prompt...'
+        )
+        .catch(() => {})
       result = await fetchTextToImage(prompt)
     }
 
@@ -222,18 +257,23 @@ export async function handleNano(ctx) {
       return ctx.api.editMessageText(
         ctx.chat.id,
         status.message_id,
-        '✎ NanoBanana no devolvió una imagen. Intenta de nuevo.'
+        'NanoBanana no devolvio una imagen. Intenta de nuevo o responde a una foto.'
       )
     }
 
-    await ctx.replyWithPhoto(new InputFile(result, 'nano.png'), {
-      caption: `🍌 NanoBanana\n✎ ${prompt.slice(0, 200)}`
+    console.log('[nano] result bytes', result.length)
+    await ctx.replyWithPhoto(new InputFile(result, 'nano.jpg'), {
+      caption: `NanoBanana\n${prompt.slice(0, 200)}`
     })
     await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
   } catch (e) {
     console.error('[nano]', e)
-    await ctx.api
-      .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e))
-      .catch(() => {})
+    if (status?.message_id) {
+      await ctx.api
+        .editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e))
+        .catch(() => ctx.reply('Error nano: ' + errText(e)).catch(() => {}))
+    } else {
+      await ctx.reply('Error nano: ' + errText(e)).catch(() => {})
+    }
   }
 }

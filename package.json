@@ -1,8 +1,8 @@
 {
   "name": "luffy7-telegram",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "private": false,
-  "description": "Luffy7 Telegram v1.5.12: comandos de WhatsApp (economia, gacha, anime, busqueda, grupo)",
+  "description": "Luffy7 Telegram v1.5.13: comandos de WhatsApp (economia, gacha, anime, busqueda, grupo)",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

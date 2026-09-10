@@ -2,7 +2,7 @@
 
 Bot: @LuffyYampiBot
 Repo: https://github.com/BerNardo77-bot/Luffy7-Telegram
-Version: 1.5.12
+Version: 1.5.13
 
 Usa Termux de F-Droid, no el de Play Store.
 

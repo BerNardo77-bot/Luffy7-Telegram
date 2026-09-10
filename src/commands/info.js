@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.5.12
+export const helpText = `⚓ Luffy7 Telegram v1.5.13
 
 Descargas a disco hasta ~2GB.
 Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
