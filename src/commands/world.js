@@ -605,148 +605,15 @@ async function apiGet(pathAndQuery) {
 
 export { handleIa } from './ai.js'
 
-export async function handleWiki(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /wiki tema')
-  try {
-    const res = await fetch(
-      `https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json`,
-      { headers: { 'User-Agent': 'Luffy7-Telegram' } }
-    )
-    const json = await res.json()
-    const results = json?.query?.search || []
-    if (!results.length) return ctx.reply('Sin resultados.')
-    const lines = results.slice(0, 4).map((r) => {
-      const snip = String(r.snippet || '').replace(/<[^>]+>/g, '')
-      return `• ${r.title}\n${snip}`
-    })
-    await ctx.reply(`Wikipedia: ${q}\n\n` + lines.join('\n\n'))
-  } catch (e) {
-    await ctx.reply('Error: ' + errText(e))
-  }
-}
-
-export async function handleImagen(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /imagen tema')
-  const status = await ctx.reply('Buscando imagen...')
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const res = await fetch(`${apiUrl}/search/googleimagen?query=${encodeURIComponent(q)}&key=${apiKey}`)
-    const ctype = (res.headers.get('content-type') || '').toLowerCase()
-    if (!res.ok || !ctype.includes('image')) {
-      return ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Sin imagen para eso.')
-    }
-    const buf = Buffer.from(await res.arrayBuffer())
-    await ctx.replyWithPhoto(new InputFile(buf, 'img.jpg'), { caption: q })
-    await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
-  } catch (e) {
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e)).catch(() => {})
-  }
-}
-
-export async function handlePin(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /pin tema o link')
-  const status = await ctx.reply('Buscando...')
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const isUrl = /^https?:\/\//i.test(q)
-    const url = isUrl
-      ? `${apiUrl}/dl/pinterest?url=${encodeURIComponent(q)}&key=${apiKey}`
-      : `${apiUrl}/search/pinterest?query=${encodeURIComponent(q)}&key=${apiKey}`
-    const res = await fetch(url)
-    const ctype = (res.headers.get('content-type') || '').toLowerCase()
-    if (ctype.includes('image')) {
-      const buf = Buffer.from(await res.arrayBuffer())
-      await ctx.replyWithPhoto(new InputFile(buf, 'pin.jpg'), { caption: q })
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
-      return
-    }
-    const json = await res.json().catch(() => ({}))
-    const link = json.result || json.url || json.data?.url
-    if (link) {
-      await ctx.replyWithPhoto(String(link), { caption: q }).catch(async () => {
-        await ctx.reply(String(link))
-      })
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
-      return
-    }
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Sin resultado.')
-  } catch (e) {
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e)).catch(() => {})
-  }
-}
-
-export async function handleYtSearch(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /ytsearch tema')
-  try {
-    const yts = (await import('yt-search')).default
-    const r = await yts(q)
-    const vids = (r.videos || []).slice(0, 5)
-    if (!vids.length) return ctx.reply('Sin videos.')
-    await ctx.reply(
-      vids.map((v, i) => `${i + 1}. ${v.title}\n${v.url}`).join('\n\n')
-    )
-  } catch (e) {
-    await ctx.reply('Error: ' + errText(e))
-  }
-}
-
-export async function handleTtSearch(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /ttsearch tema')
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const res = await fetch(`${apiUrl}/search/tiktok?query=${encodeURIComponent(q)}&key=${apiKey}`)
-    const json = await res.json()
-    const list = json.result || json.results || json.data || []
-    const arr = Array.isArray(list) ? list.slice(0, 5) : []
-    if (!arr.length) return ctx.reply('Sin resultados.')
-    const lines = arr.map((r, i) => {
-      const id = r.id
-      const author = r.author?.unique_id || r.author || ''
-      const url = r.url || (author && id ? `https://www.tiktok.com/@${author}/video/${id}` : '')
-      return `${i + 1}. ${r.title || r.desc || 'video'}\n${url}`
-    })
-    await ctx.reply(lines.join('\n\n'))
-  } catch (e) {
-    await ctx.reply('Error: ' + errText(e))
-  }
-}
-
-export async function handleApk(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /apk nombre')
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const res = await fetch(`${apiUrl}/search/apk?query=${encodeURIComponent(q)}&key=${apiKey}`)
-    const json = await res.json()
-    const item = json.result || json.data || json
-    const name = item.name || item.title || q
-    const url = item.url || item.link || item.download
-    await ctx.reply(url ? `${name}\n${url}` : JSON.stringify(json).slice(0, 800))
-  } catch (e) {
-    await ctx.reply('Error: ' + errText(e))
-  }
-}
-
-export async function handleAms(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /ams tema')
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const res = await fetch(`${apiUrl}/search/applemusic?query=${encodeURIComponent(q)}&key=${apiKey}`)
-    const json = await res.json()
-    const item = json.result || json.data || {}
-    const title = item.title || item.name || q
-    const url = item.url || item.link || ''
-    await ctx.reply(url ? `${title}\n${url}` : JSON.stringify(json).slice(0, 800))
-  } catch (e) {
-    await ctx.reply('Error: ' + errText(e))
-  }
-}
+export {
+  handleWiki,
+  handleImagen,
+  handlePin,
+  handleYtSearch,
+  handleTtSearch,
+  handleApk,
+  handleAms
+} from './search.js'
 
 const ANIME = {
   angry: 'esta enojado/a',

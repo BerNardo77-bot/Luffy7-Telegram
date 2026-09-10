@@ -72,7 +72,6 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 👤 Perfil
 /perfil /level /setdesc /setgenre /sethobby /marry /divorce
 
-🔍 Busqueda
 🤖 IA
 /ia /chatgpt /gpt — ChatGPT
 /gemini /geminis — Gemini
@@ -80,7 +79,14 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /grok — Grok
 /nano /nanobanana — editar foto con prompt (o generar desde texto)
 
-/wiki /imagen /pin /ytsearch /ttsearch /apk /ams
+🔍 Busqueda
+/wiki /wikipedia — Wikipedia
+/imagen /img /image — imagen (Google + Pinterest)
+/pin /pinterest — Pinterest (tema o link)
+/ytsearch /search /yts — YouTube
+/ttsearch /tiktoksearch /tts — TikTok
+/apk /aptoide /apkdl — APK Aptoide
+/ams /applemusicsearch — Apple Music / iTunes
 
 🎭 Anime
 /hug /kiss /pat /slap /dance /cry y alias (/abrazo no, usa /hug /beso /morder)

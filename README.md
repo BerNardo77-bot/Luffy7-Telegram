@@ -1,5 +1,9 @@
 # Luffy7 Telegram
 
+## v1.5.14
+- SEARCH al nivel WhatsApp: /ytsearch (Alyacore), /ttsearch, /wiki, /pin, /imagen (+Pinterest fallback), /apk, /ams (iTunes)
+
+
 Version **1.5.13** — fix /nano (router forzado + fallback Pollinations). — IA completa como WhatsApp: /ia /gemini /deepseek /grok /nano.
 
 Version **1.5.11** — todas las descargas en alta calidad (YouTube, TikTok, IG, FB, XVideos, XNXX). Si pesan >50MB, comprimen para Telegram.

@@ -132,6 +132,34 @@ bot.on('message:text', async (ctx, next) => {
     console.log('[ai] force nano')
     return handleNano(ctx)
   }
+  if (cmd === '/wiki' || cmd === '/wikipedia') {
+    console.log('[search] force wiki')
+    return handleWiki(ctx)
+  }
+  if (cmd === '/imagen' || cmd === '/img' || cmd === '/image') {
+    console.log('[search] force imagen')
+    return handleImagen(ctx)
+  }
+  if (cmd === '/pin' || cmd === '/pinterest') {
+    console.log('[search] force pin')
+    return handlePin(ctx)
+  }
+  if (cmd === '/ytsearch' || cmd === '/search' || cmd === '/yts') {
+    console.log('[search] force ytsearch')
+    return handleYtSearch(ctx)
+  }
+  if (cmd === '/ttsearch' || cmd === '/tiktoksearch' || cmd === '/tts') {
+    console.log('[search] force ttsearch')
+    return handleTtSearch(ctx)
+  }
+  if (cmd === '/apk' || cmd === '/aptoide' || cmd === '/apkdl') {
+    console.log('[search] force apk')
+    return handleApk(ctx)
+  }
+  if (cmd === '/ams' || cmd === '/applemusicsearch') {
+    console.log('[search] force ams')
+    return handleAms(ctx)
+  }
   await next()
 })
 
@@ -629,7 +657,7 @@ bot.command(['nano', 'nanobanana'], handleNano)
 bot.command(['wiki', 'wikipedia'], handleWiki)
 bot.command(['imagen', 'img', 'image'], handleImagen)
 bot.command(['pinterest', 'pin'], handlePin)
-bot.command(['ytsearch', 'search'], handleYtSearch)
+bot.command(['ytsearch', 'search', 'yts'], handleYtSearch)
 bot.command(['tiktoksearch', 'ttsearch', 'tts'], handleTtSearch)
 bot.command(['aptoide', 'apk', 'apkdl'], handleApk)
 bot.command(['ams', 'applemusicsearch'], handleAms)
