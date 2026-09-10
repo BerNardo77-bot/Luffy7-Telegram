@@ -292,7 +292,29 @@ export async function handleTtSearch(ctx) {
 
 export async function handleApk(ctx) {
   const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /apk <nombre de la app>\nEjemplo: /apk WhatsApp')
+  if (!q) {
+    return ctx.reply(
+      'Uso:\n' +
+        '/apk <nombre> — busca en Aptoide\n' +
+        'Ejemplo: /apk WhatsApp\n\n' +
+        'Si ya tienes el link .apk, abrelo en el navegador.\n' +
+        'Telegram no sube APKs de mas de ~50 MB.'
+    )
+  }
+
+  // Link directo de APK (no es busqueda)
+  if (/^https?:\/\//i.test(q)) {
+    const nameGuess = decodeURIComponent(q.split('/').pop() || 'app.apk').split('?')[0] || 'app.apk'
+    await ctx.reply(
+      `Link APK detectado\n\n` +
+        `Archivo: ${nameGuess}\n` +
+        `URL: ${q}\n\n` +
+        `Telegram cloud max ~50 MB: no puedo subir APKs grandes por aqui.\n` +
+        `Abre el link en el navegador o un gestor de descargas.\n\n` +
+        `Para buscar por nombre: /apk WhatsApp`
+    )
+    return
+  }
 
   const status = await ctx.reply('Buscando APK...')
   const base = apiBase()
@@ -320,11 +342,13 @@ export async function handleApk(ctx) {
 
         await ctx.api.editMessageText(ctx.chat.id, status.message_id, info)
 
-        // Telegram cloud ~50 MB. Si el APK es grande, solo link (no intentar enviar).
         const sizeMb = parseFloat(String(data.size || '').replace(/[^0-9.]/g, ''))
         const tooBig = Number.isFinite(sizeMb) && sizeMb > 45
         if (tooBig) {
-          await ctx.reply('El APK pesa mas de 45 MB: Telegram no lo puede subir. Usa el link de arriba.')
+          await ctx.reply(
+            'Ese APK pesa mas de 45 MB: Telegram no lo puede subir.\n' +
+              'Copia el link de arriba y descargalo en el navegador.'
+          )
           return
         }
         try {
@@ -341,7 +365,11 @@ export async function handleApk(ctx) {
         last = e.message || last
       }
     }
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, `No encontre la app ${q}.\n${last}`)
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      status.message_id,
+      `No encontre la app "${q}".\nPrueba otro nombre (ej: /apk GTA).\n${last}`
+    )
   } catch (e) {
     await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e)).catch(() => {})
   }

@@ -85,7 +85,7 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /pin /pinterest — Pinterest (tema o link)
 /ytsearch /search /yts — YouTube
 /ttsearch /tiktoksearch /tts — TikTok
-/apk /aptoide /apkdl — APK Aptoide
+/apk /aptoide /apkdl — busca APK por nombre (no por link; >50MB solo link)
 /ams /applemusicsearch — Apple Music / iTunes
 
 🎭 Anime

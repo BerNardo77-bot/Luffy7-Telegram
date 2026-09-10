@@ -1,5 +1,9 @@
 # Luffy7 Telegram
 
+## v1.5.16
+- /apk: si pegas un link .apk responde claro (Telegram no sube >50MB); busqueda sigue por nombre
+
+
 ## v1.5.15
 - /apk: mensaje formateado (no JSON crudo); si pesa >45 MB solo manda el link
 
