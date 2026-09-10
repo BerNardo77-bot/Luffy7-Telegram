@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.5.11
+export const helpText = `⚓ Luffy7 Telegram v1.5.12
 
 Descargas a disco hasta ~2GB.
 Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
@@ -73,7 +73,14 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /perfil /level /setdesc /setgenre /sethobby /marry /divorce
 
 🔍 Busqueda
-/ia /wiki /imagen /pin /ytsearch /ttsearch /apk /ams
+🤖 IA
+/ia /chatgpt /gpt — ChatGPT
+/gemini /geminis — Gemini
+/deepseek /ds — DeepSeek
+/grok — Grok
+/nano /nanobanana — editar foto con prompt (o generar desde texto)
+
+/wiki /imagen /pin /ytsearch /ttsearch /apk /ams
 
 🎭 Anime
 /hug /kiss /pat /slap /dance /cry y alias (/abrazo no, usa /hug /beso /morder)

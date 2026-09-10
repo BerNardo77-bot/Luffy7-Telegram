@@ -41,7 +41,7 @@ import {
   handleGinfo, handleSell, handleBuyChar, handleGiveChar, handleDelChar, handleWaifuBoard,
   handleVote, handleTrade, handleProfile, handleLevel, handleSetDesc, handleDelDesc,
   handleSetBirth, handleDelBirth, handleSetGenre, handleDelGenre, handleSetHobby,
-  handleDelHobby, handleMarry, handleDivorce, handleIa, handleWiki, handleImagen,
+  handleDelHobby, handleMarry, handleDivorce, handleWiki, handleImagen,
   handlePin, handleYtSearch, handleTtSearch, handleApk, handleAms, handleAnime,
   ANIME_COMMANDS, handleStatus, handleInfobot, handleInvite, handleSuggest,
   handleRpg, handleGachaToggle, handleWelcomeToggle, handleByeToggle, handleSetWelcome,
@@ -50,6 +50,13 @@ import {
   handleSetGpDesc, handleOpen, handleCloset, handleHidetag, handleClear, handlePfp,
   waOnly, onNewMember, onLeftMember
 } from './commands/world.js'
+import {
+  handleIa,
+  handleGemini,
+  handleDeepseek,
+  handleGrok,
+  handleNano
+} from './commands/ai.js'
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 if (!token) {
@@ -586,7 +593,11 @@ bot.command(['delpasatiempo', 'removehobby'], handleDelHobby)
 bot.command(['marry'], handleMarry)
 bot.command(['divorce'], handleDivorce)
 
-bot.command(['ia', 'chatgpt'], handleIa)
+bot.command(['ia', 'chatgpt', 'gpt'], handleIa)
+bot.command(['gemini', 'geminis'], handleGemini)
+bot.command(['deepseek', 'ds'], handleDeepseek)
+bot.command(['grok'], handleGrok)
+bot.command(['nano', 'nanobanana'], handleNano)
 bot.command(['wiki', 'wikipedia'], handleWiki)
 bot.command(['imagen', 'img', 'image'], handleImagen)
 bot.command(['pinterest', 'pin'], handlePin)

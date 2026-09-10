@@ -603,21 +603,7 @@ async function apiGet(pathAndQuery) {
   return res
 }
 
-export async function handleIa(ctx) {
-  const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /ia tu pregunta')
-  const status = await ctx.reply('Pensando...')
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const res = await fetch(`${apiUrl}/ai/chatgpt?text=${encodeURIComponent(q)}&key=${apiKey}`)
-    const json = await res.json()
-    const out = (json.result || json.message || '').toString().trim()
-    if (!out) throw new Error('sin respuesta')
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, out.slice(0, 4000))
-  } catch (e) {
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e)).catch(() => {})
-  }
-}
+export { handleIa } from './ai.js'
 
 export async function handleWiki(ctx) {
   const q = text(ctx)
