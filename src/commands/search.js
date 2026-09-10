@@ -320,7 +320,13 @@ export async function handleApk(ctx) {
 
         await ctx.api.editMessageText(ctx.chat.id, status.message_id, info)
 
-        // Telegram cloud ~50MB — manda documento si cabe; si no, solo el link
+        // Telegram cloud ~50 MB. Si el APK es grande, solo link (no intentar enviar).
+        const sizeMb = parseFloat(String(data.size || '').replace(/[^0-9.]/g, ''))
+        const tooBig = Number.isFinite(sizeMb) && sizeMb > 45
+        if (tooBig) {
+          await ctx.reply('El APK pesa mas de 45 MB: Telegram no lo puede subir. Usa el link de arriba.')
+          return
+        }
         try {
           await ctx.replyWithDocument(String(data.dl), {
             caption: `${data.name}.apk`,
@@ -328,7 +334,7 @@ export async function handleApk(ctx) {
           })
         } catch (e) {
           console.error('[apk] document', e?.message || e)
-          await ctx.reply(`No pude enviar el APK por Telegram (limite ~50 MB). Usa el link de arriba.`)
+          await ctx.reply('No pude enviar el APK por Telegram (limite ~50 MB). Usa el link de arriba.')
         }
         return
       } catch (e) {

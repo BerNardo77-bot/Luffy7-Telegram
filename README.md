@@ -1,5 +1,9 @@
 # Luffy7 Telegram
 
+## v1.5.15
+- /apk: mensaje formateado (no JSON crudo); si pesa >45 MB solo manda el link
+
+
 ## v1.5.14
 - SEARCH al nivel WhatsApp: /ytsearch (Alyacore), /ttsearch, /wiki, /pin, /imagen (+Pinterest fallback), /apk, /ams (iTunes)
 
