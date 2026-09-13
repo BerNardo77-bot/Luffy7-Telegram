@@ -3,7 +3,10 @@
 Version: 1.5.18
 Repo nube: https://github.com/BerNardo77-bot/bbboy
 Codigo fuente (Termux): https://github.com/BerNardo77-bot/Luffy7-Telegram
-Bot: @LuffyYampiBot
+Bot Termux: @LuffyYampiBot
+Bot nube: el que crees en BotFather (token distinto)
+
+Guia paso a paso (bot nuevo + Railway): [RAILWAY.md](RAILWAY.md)
 
 Esto NO es Termux. El bot usa polling (escucha Telegram). No necesita dominio ni webhook.
 
