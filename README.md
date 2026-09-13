@@ -1,5 +1,9 @@
 # Luffy7 Telegram
 
+## v1.5.18
+- Nube: Dockerfile (ffmpeg + yt-dlp), HTTP health si hay PORT, guia [CLOUD.md](CLOUD.md) para Railway/Render
+
+
 ## v1.5.17
 - ANIME: aliases ES (/abrazo, /baile…) + force router + key fallback
 - GACHA: /rw y /winfo con imagen (safebooru/gelbooru/danbooru), force router, menu completo

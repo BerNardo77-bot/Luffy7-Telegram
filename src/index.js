@@ -64,6 +64,23 @@ if (!token) {
   process.exit(1)
 }
 
+// Railway/Render inyectan PORT. Un HTTP minimo evita que un "Web Service" mate el proceso.
+const cloudPort = Number(process.env.PORT)
+if (Number.isFinite(cloudPort) && cloudPort > 0) {
+  import('http')
+    .then((http) => {
+      http
+        .createServer((_req, res) => {
+          res.writeHead(200, { 'Content-Type': 'text/plain' })
+          res.end('Luffy7 Telegram ok\n')
+        })
+        .listen(cloudPort, '0.0.0.0', () => {
+          console.log('[cloud] HTTP health en puerto', cloudPort)
+        })
+    })
+    .catch((e) => console.error('[cloud] http', e?.message || e))
+}
+
 const useLocalApi = Boolean(process.env.TELEGRAM_API_ROOT)
 const MAX_SEND = Number(
   process.env.MAX_SEND_BYTES || (useLocalApi ? 1900 * 1024 * 1024 : 49 * 1024 * 1024)
@@ -745,7 +762,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.17 arrancando...')
+console.log('Luffy7 Telegram v1.5.18 arrancando...')
 
 async function goOnline() {
   try {

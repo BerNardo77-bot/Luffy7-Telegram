@@ -1,0 +1,6 @@
+# Fallback si Railway/Render no usan el Dockerfile
+[phases.setup]
+nixPkgs = ["ffmpeg", "python311", "yt-dlp"]
+
+[start]
+cmd = "node src/index.js"

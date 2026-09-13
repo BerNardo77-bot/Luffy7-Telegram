@@ -1,0 +1,15 @@
+services:
+  - type: worker
+    name: luffy7-telegram
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ALYACORE_API_URL
+        value: https://api.alyacore.xyz
+      - key: ALYACORE_API_KEY
+        value: LUFFY-FIX67
+      - key: NSFW_ENABLED
+        value: "true"
