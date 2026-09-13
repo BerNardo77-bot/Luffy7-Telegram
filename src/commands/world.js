@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import fetch from 'node-fetch'
 import { InputFile } from 'grammy'
-import { argText, getConfig, errText } from '../api.js'
+import { argText, getConfig, errText, getBooruImageUrl, downloadToFile, tmpPath, safeUnlink } from '../api.js'
 import {
   userOf,
   chatOf,
@@ -362,21 +362,93 @@ function loadChars() {
   return characters
 }
 
+async function fetchCharImage(char) {
+  const endpoints = ['safebooru', 'gelbooru', 'danbooru']
+  const variants = []
+  const add = (k) => {
+    const v = (k || '').trim()
+    if (v && !variants.includes(v)) variants.push(v)
+  }
+  add(char.keyword)
+  if (char.keyword && char.keyword.includes('(')) {
+    add(char.keyword.split('(')[0].replace(/_+$/, ''))
+  }
+  if (char.name) {
+    add(String(char.name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))
+  }
+  for (const kw of variants) {
+    for (const ep of endpoints) {
+      try {
+        const got = await getBooruImageUrl(ep === 'safebooru' ? 'danbooru' : ep, kw)
+        // Prefer dedicated safebooru path via raw fetch if ep is safebooru
+        if (ep === 'safebooru') {
+          const { apiUrl, apiKey } = getConfig()
+          const keys = [apiKey, 'LUFFY-FIX67'].filter((x, i, a) => x && a.indexOf(x) === i)
+          for (const key of keys) {
+            const url = `${apiUrl}/nsfw/safebooru?keyword=${encodeURIComponent(kw)}&key=${encodeURIComponent(key)}`
+            const res = await fetch(url)
+            const ctype = (res.headers.get('content-type') || '').toLowerCase()
+            if (res.ok && (ctype.includes('image') || ctype.includes('octet'))) {
+              const buf = Buffer.from(await res.arrayBuffer())
+              if (buf.length > 256) return { buffer: buf }
+            }
+          }
+          continue
+        }
+        if (got?.url) {
+          const out = tmpPath(`${Date.now()}-rw.jpg`)
+          try {
+            await downloadToFile(got.url, out, { timeout: 60000 })
+            const buf = fs.readFileSync(out)
+            safeUnlink(out)
+            if (buf.length > 256) return { buffer: buf }
+          } catch {
+            safeUnlink(out)
+          }
+        }
+      } catch (e) {
+        console.error('[rw img]', ep, e?.message || e)
+      }
+    }
+  }
+  return null
+}
+
 export async function handleRoll(ctx) {
   if (!gachaOn(ctx)) return ctx.reply('Gacha apagado. Un admin: /gacha enable')
   const u = userOf(ctx)
   if (await needWait(ctx, u, 'rw', 'otro roll')) return
   const list = loadChars()
   if (!list.length) return ctx.reply('No hay lista de personajes.')
-  const owned = new Set(u.harem.map((c) => c.name))
+  const owned = new Set((u.harem || []).map((c) => c.name))
   const pool = list.filter((c) => !owned.has(c.name))
   const char = pick(pool.length ? pool : list)
+  const status = await ctx.reply(`Buscando imagen de ${char.name}...`)
+
   u.pendingRoll = { ...char, at: Date.now() }
   setCooldown(u, 'rw', 15 * 60 * 1000)
   persist()
-  await ctx.reply(
-    `Roll: ${char.name}\nSerie: ${char.source}\nValor: ${fmt(char.value)} ${CURRENCY}\nGenero: ${char.gender}\nReclama con /claim (o /c)`
-  )
+
+  const caption =
+    `Roll: ${char.name}\n` +
+    `Serie: ${char.source}\n` +
+    `Valor: ${fmt(char.value)} ${CURRENCY}\n` +
+    `Genero: ${char.gender}\n` +
+    `Estado: Libre\n` +
+    `Reclama con /claim (o /c) en menos de 2 min`
+
+  const img = await fetchCharImage(char)
+  try {
+    if (img?.buffer) {
+      await ctx.replyWithPhoto(new InputFile(img.buffer, 'waifu.jpg'), { caption })
+      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
+    } else {
+      await ctx.api.editMessageText(ctx.chat.id, status.message_id, caption + '\n(Sin imagen; igual puedes /claim)')
+    }
+  } catch (e) {
+    console.error('[rw]', e)
+    await ctx.reply(caption).catch(() => {})
+  }
 }
 
 export async function handleClaim(ctx) {
@@ -420,7 +492,19 @@ export async function handleWinfo(ctx) {
   if (!q) return ctx.reply('Uso: /winfo nombre')
   const hit = loadChars().find((c) => c.name.toLowerCase().includes(q) || (c.source || '').toLowerCase().includes(q))
   if (!hit) return ctx.reply('No encontre ese personaje.')
-  await ctx.reply(`${hit.name}\nSerie: ${hit.source}\nValor: ${fmt(hit.value)} ${CURRENCY}\nGenero: ${hit.gender}`)
+  const caption = `${hit.name}\nSerie: ${hit.source}\nValor: ${fmt(hit.value)} ${CURRENCY}\nGenero: ${hit.gender}`
+  const status = await ctx.reply('Buscando imagen...')
+  const img = await fetchCharImage(hit)
+  try {
+    if (img?.buffer) {
+      await ctx.replyWithPhoto(new InputFile(img.buffer, 'char.jpg'), { caption })
+      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {})
+    } else {
+      await ctx.api.editMessageText(ctx.chat.id, status.message_id, caption)
+    }
+  } catch {
+    await ctx.reply(caption).catch(() => {})
+  }
 }
 
 export async function handleSerieInfo(ctx) {
@@ -445,7 +529,16 @@ export async function handleSerieList(ctx) {
 
 export async function handleGinfo(ctx) {
   await ctx.reply(
-    'Gacha\n/rw roll (15 min)\n/claim reclama el roll (2 min)\n/harem tu lista\n/winfo nombre\n/sell nombre\n/givechar responde a alguien + nombre'
+    'Gacha (como WhatsApp)\n' +
+      '/rw /roll /rf — roll con imagen (cd 15 min)\n' +
+      '/claim /c — reclama (2 min)\n' +
+      '/harem — tu coleccion\n' +
+      '/winfo nombre — ficha + imagen\n' +
+      '/serieinfo · /slist — series\n' +
+      '/sell nombre — vende por monedas\n' +
+      '/givechar — responde a alguien + nombre\n' +
+      '/delchar · /waifusboard · /vote\n' +
+      '/gacha enable|disable — admin'
   )
 }
 
@@ -463,7 +556,7 @@ export async function handleSell(ctx) {
 }
 
 export async function handleBuyChar(ctx) {
-  return ctx.reply('En Telegram reclama con /rw y /claim. /buychar no usa tienda global.')
+  return ctx.reply('Tienda global: usa /haremshop para ver ventas de otros.\nPara conseguir chars: /rw + /claim.\nPara comprar de alguien: /buychar nombre (si esta en venta).')
 }
 
 export async function handleGiveChar(ctx) {
@@ -511,7 +604,17 @@ export async function handleVote(ctx) {
 }
 
 export async function handleTrade(ctx) {
-  return ctx.reply('Trade en Telegram: responde a alguien y usa /givechar nombre.')
+  const cmd = (ctx.message?.text || '').split(/\s+/)[0].replace(/^\//, '').split('@')[0].toLowerCase()
+  if (cmd === 'haremshop' || cmd === 'tiendawaifus' || cmd === 'wshop') {
+    return ctx.reply('Tienda de harem: por ahora vende con /sell y regala con /givechar (responde a alguien).')
+  }
+  if (cmd === 'giveallharem') {
+    return ctx.reply('Para regalar todo el harem: ve uno por uno con /givechar (responde al usuario).')
+  }
+  if (cmd === 'removesale' || cmd === 'removerventa') {
+    return ctx.reply('No hay ventas pendientes en esta version. /sell vende al bot por monedas.')
+  }
+  return ctx.reply('Trade: responde a alguien y usa /givechar nombre.\nAlias: /trade /cambiar /accepttrade')
 }
 
 export async function handleProfile(ctx) {
@@ -615,119 +718,7 @@ export {
   handleAms
 } from './search.js'
 
-const ANIME = {
-  angry: 'esta enojado/a',
-  bleh: 'saca la lengua',
-  bored: 'esta aburrido/a',
-  kisscheek: 'da un beso en la mejilla',
-  clap: 'aplaude',
-  coffee: 'toma cafe',
-  dramatic: 'hace un drama',
-  drunk: 'esta mareado/a',
-  impregnate: 'mira raro',
-  kiss: 'besa',
-  laugh: 'se rie',
-  love: 'muestra amor',
-  pout: 'hace pucheros',
-  punch: 'golpea',
-  run: 'corre',
-  sad: 'esta triste',
-  scared: 'tiene miedo',
-  seduce: 'intenta seducir',
-  shy: 'se pone timido/a',
-  sleep: 'duerme',
-  smoke: 'fuma',
-  spit: 'escupe',
-  step: 'pisa',
-  think: 'piensa',
-  walk: 'camina',
-  hug: 'abraza',
-  kill: 'ataca',
-  eat: 'come',
-  wink: 'guina el ojo',
-  pat: 'palmea',
-  happy: 'esta feliz',
-  bully: 'molesta',
-  bite: 'muerde',
-  blush: 'se sonroja',
-  wave: 'saluda',
-  bath: 'se bana',
-  smug: 'sonrie de lado',
-  smile: 'sonrie',
-  highfive: 'choca los cinco',
-  handhold: 'toma la mano',
-  cringe: 'se averguenza',
-  bonk: 'da un bonk',
-  cry: 'llora',
-  lick: 'lame',
-  slap: 'da una bofetada',
-  dance: 'baila',
-  cuddle: 'se acurruca',
-  cold: 'tiene frio',
-  sing: 'canta',
-  tickle: 'hace cosquillas',
-  scream: 'grita',
-  push: 'empuja',
-  nope: 'dice que no',
-  jump: 'salta',
-  heat: 'tiene calor',
-  gaming: 'juega',
-  draw: 'dibuja',
-  call: 'llama',
-  snuggle: 'se acurruca',
-  blowkiss: 'lanza un beso',
-  trip: 'tropieza',
-  stare: 'mira fijo',
-  sniff: 'olfatea',
-  curious: 'esta curioso/a',
-  thinkhard: 'piensa mucho',
-  comfort: 'consuela',
-  peek: 'espia'
-}
-
-const ANIME_ALIAS = {
-  muak: 'kiss',
-  beso: 'kisscheek',
-  cafe: 'coffee',
-  aburrido: 'bored',
-  drama: 'dramatic',
-  preg: 'impregnate',
-  timido: 'shy',
-  correr: 'run',
-  triste: 'sad',
-  amor: 'love',
-  fumar: 'smoke',
-  escupir: 'spit',
-  pisar: 'step',
-  comer: 'eat',
-  nom: 'eat',
-  feliz: 'happy',
-  morder: 'bite'
-}
-
-export const ANIME_COMMANDS = [...new Set([...Object.keys(ANIME), ...Object.keys(ANIME_ALIAS)])]
-
-export async function handleAnime(ctx) {
-  const raw = (ctx.message?.text || '').split(/\s+/)[0].replace(/^\//, '').split('@')[0].toLowerCase()
-  const cmd = ANIME_ALIAS[raw] || raw
-  const verb = ANIME[cmd] || 'interactua'
-  const me = displayName(ctx)
-  const t = targetFrom(ctx)
-  const caption = t ? `${me} ${verb} a ${targetName(t)}.` : `${me} ${verb}.`
-  try {
-    const { apiUrl, apiKey } = getConfig()
-    const res = await fetch(`${apiUrl}/sfw/interaction?inter=${encodeURIComponent(cmd)}&key=${apiKey}`)
-    const json = await res.json()
-    const videoUrl = json.result
-    if (!json.status || !videoUrl) throw new Error('sin gif')
-    await ctx.replyWithAnimation(videoUrl, { caption }).catch(async () => {
-      await ctx.replyWithVideo(videoUrl, { caption })
-    })
-  } catch (e) {
-    console.error('[anime]', e)
-    await ctx.reply(caption + '\nNo pude bajar el gif.')
-  }
-}
+export { ANIME_COMMANDS, handleAnime } from './anime.js'
 
 export async function handleStatus(ctx) {
   const chat = chatOf(ctx)

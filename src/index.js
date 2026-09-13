@@ -160,6 +160,53 @@ bot.on('message:text', async (ctx, next) => {
     console.log('[search] force ams')
     return handleAms(ctx)
   }
+
+  // Gacha
+  const gachaCmds = new Set([
+    '/rw', '/roll', '/rollwaifu', '/rf',
+    '/claim', '/c',
+    '/harem', '/miswaifus', '/claims',
+    '/winfo', '/charinfo', '/cinfo', '/charimage', '/wimage', '/cimage',
+    '/serieinfo', '/animeinfo', '/ainfo',
+    '/slist', '/serielist', '/animelist',
+    '/gachainfo', '/ginfo', '/infogacha',
+    '/sell', '/vender',
+    '/buycharacter', '/buychar', '/buyc',
+    '/givechar', '/givewaifu', '/regalar',
+    '/delchar', '/delwaifu', '/deletechar',
+    '/waifusboard', '/waifustop', '/topwaifus',
+    '/vote', '/votar',
+    '/trade', '/cambiar', '/accepttrade', '/aceptarintercambio',
+    '/giveallharem', '/haremshop', '/tiendawaifus', '/wshop',
+    '/removesale', '/removerventa',
+    '/gacha'
+  ])
+  if (gachaCmds.has(cmd)) {
+    console.log('[gacha] force', cmd)
+    if (cmd === '/gacha') return handleGachaToggle(ctx)
+    if (['/rw','/roll','/rollwaifu','/rf'].includes(cmd)) return handleRoll(ctx)
+    if (['/claim','/c'].includes(cmd)) return handleClaim(ctx)
+    if (['/harem','/miswaifus','/claims'].includes(cmd)) return handleHarem(ctx)
+    if (['/winfo','/charinfo','/cinfo','/charimage','/wimage','/cimage'].includes(cmd)) return handleWinfo(ctx)
+    if (['/serieinfo','/animeinfo','/ainfo'].includes(cmd)) return handleSerieInfo(ctx)
+    if (['/slist','/serielist','/animelist'].includes(cmd)) return handleSerieList(ctx)
+    if (['/gachainfo','/ginfo','/infogacha'].includes(cmd)) return handleGinfo(ctx)
+    if (['/sell','/vender'].includes(cmd)) return handleSell(ctx)
+    if (['/buycharacter','/buychar','/buyc'].includes(cmd)) return handleBuyChar(ctx)
+    if (['/givechar','/givewaifu','/regalar'].includes(cmd)) return handleGiveChar(ctx)
+    if (['/delchar','/delwaifu','/deletechar'].includes(cmd)) return handleDelChar(ctx)
+    if (['/waifusboard','/waifustop','/topwaifus'].includes(cmd)) return handleWaifuBoard(ctx)
+    if (['/vote','/votar'].includes(cmd)) return handleVote(ctx)
+    return handleTrade(ctx)
+  }
+
+  // Anime interactions
+  const animeBare = cmd.replace(/^\//, '')
+  if (ANIME_COMMANDS.includes(animeBare)) {
+    console.log('[anime] force', animeBare)
+    return handleAnime(ctx)
+  }
+
   await next()
 })
 

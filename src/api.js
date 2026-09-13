@@ -836,7 +836,7 @@ export async function getXnxxDownload(videoUrl) {
 export async function getBooruImageUrl(kind, keyword) {
   const { apiUrl } = getConfig()
   const keys = apiKeys()
-  const ep = kind === 'gelbooru' ? 'gelbooru' : 'danbooru'
+  const ep = kind === 'gelbooru' ? 'gelbooru' : kind === 'safebooru' ? 'safebooru' : 'danbooru'
   let last = 'Sin resultado'
   for (const key of keys) {
     const endpoint = `${apiUrl}/nsfw/${ep}?keyword=${encodeURIComponent(keyword)}&key=${key}`

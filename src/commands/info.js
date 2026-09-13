@@ -67,7 +67,15 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /dep /withdraw /flip /slot /rt /ppt /math /eboard /einfo
 
 🃏 Gacha
-/rw /claim /harem /winfo /sell /givechar /slist
+/rw /roll /rf — roll waifu (15 min, con imagen)
+/claim /c — reclama el roll (2 min)
+/harem /miswaifus — tu lista
+/winfo /charinfo — info + imagen
+/serieinfo /animeinfo · /slist /animelist
+/ginfo — ayuda gacha
+/sell /vender · /givechar (responde a alguien)
+/delchar · /waifusboard · /vote
+/trade /haremshop /buychar /gacha enable|disable
 
 👤 Perfil
 /perfil /level /setdesc /setgenre /sethobby /marry /divorce
@@ -88,8 +96,12 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /apk /aptoide /apkdl — busca APK por nombre (no por link; >50MB solo link)
 /ams /applemusicsearch — Apple Music / iTunes
 
-🎭 Anime
-/hug /kiss /pat /slap /dance /cry y alias (/abrazo no, usa /hug /beso /morder)
+🎭 Anime (responde a alguien para apuntar)
+/hug /abrazo /kiss /muak /beso /pat /slap /dance /baile /cry
+/bite /morder /blush /bonk /bully /cuddle /handhold /highfive
+/lick /wave /wink /happy /feliz /sad /triste /angry /bored
+/coffee /cafe /sleep /smoke /punch /kill /eat /nom y mas
+(/menu completo: mismos nombres que WhatsApp)
 
 👥 Grupo (bot admin)
 /kick /promote /demote /warn /link /gp /open /closet

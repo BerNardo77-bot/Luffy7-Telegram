@@ -1,5 +1,10 @@
 # Luffy7 Telegram
 
+## v1.5.17
+- ANIME: aliases ES (/abrazo, /baile…) + force router + key fallback
+- GACHA: /rw y /winfo con imagen (safebooru/gelbooru/danbooru), force router, menu completo
+
+
 ## v1.5.16
 - /apk: si pegas un link .apk responde claro (Telegram no sube >50MB); busqueda sigue por nombre
 
