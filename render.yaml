@@ -1,6 +1,6 @@
 services:
   - type: worker
-    name: luffy7-telegram
+    name: bbboy
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile

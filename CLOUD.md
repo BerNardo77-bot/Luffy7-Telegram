@@ -1,7 +1,8 @@
 # Luffy7 Telegram en la nube (Railway o Render)
 
 Version: 1.5.18
-Repo: https://github.com/BerNardo77-bot/Luffy7-Telegram
+Repo nube: https://github.com/BerNardo77-bot/bbboy
+Codigo fuente (Termux): https://github.com/BerNardo77-bot/Luffy7-Telegram
 Bot: @LuffyYampiBot
 
 Esto NO es Termux. El bot usa polling (escucha Telegram). No necesita dominio ni webhook.
@@ -35,7 +36,7 @@ No cierres el bot de WhatsApp si esta en el mismo celular; mata solo Node del de
 1. Entra a https://railway.app e inicia sesion con GitHub.
 2. New Project.
 3. Deploy from GitHub repo.
-4. Autoriza GitHub si lo pide y elige BerNardo77-bot/Luffy7-Telegram (rama main).
+4. Autoriza GitHub si lo pide y elige BerNardo77-bot/bbboy (rama main). No elijas Luffy7-Telegram.
 5. Railway detecta el Dockerfile y construye solo.
 6. Abre el servicio. Ve a Variables.
 7. Add las 4 variables de la tabla. Pega el token real.
@@ -63,7 +64,7 @@ Background Worker en Render es plan de pago (Starter).
 1. Entra a https://dashboard.render.com e inicia sesion con GitHub.
 2. New +.
 3. Background Worker.
-4. Connect BerNardo77-bot/Luffy7-Telegram, rama main.
+4. Connect BerNardo77-bot/bbboy, rama main. No elijas Luffy7-Telegram.
 5. Runtime: Docker (usa el Dockerfile del repo).
 6. Start Command: dejalo vacio (el Dockerfile ya hace node src/index.js).
 7. Environment: las 4 variables de la tabla.
@@ -95,7 +96,7 @@ Gacha/economia se resetean: no hay Volume. Agrega /app/data.
 
 ## Actualizar la nube
 
-Haz push a main. Railway y Render redespliegan solos.
+Haz push a main en BerNardo77-bot/bbboy. Railway y Render redespliegan solos.
 O en el panel: Redeploy.
 
 Sigue apagado Termux.
