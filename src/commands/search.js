@@ -24,24 +24,49 @@ function apiBase() {
 
 export async function handleWiki(ctx) {
   const q = text(ctx)
-  if (!q) return ctx.reply('Uso: /wiki <tema>\nEjemplo: /wiki Anubis')
+  if (!q) return ctx.reply('Uso: /wiki <tema>\nEjemplo: /wiki Albert Einstein')
   const status = await ctx.reply('Buscando en Wikipedia...')
   try {
     const searchUrl =
       `https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=` +
-      `${encodeURIComponent(q)}&format=json&utf8=1`
-    const res = await fetch(searchUrl, { headers: { 'User-Agent': 'Luffy7-Telegram' } })
+      `${encodeURIComponent(q)}&format=json&utf8=1&srlimit=5`
+    const res = await fetch(searchUrl, { headers: { 'User-Agent': 'Luffy7-Telegram/1.5.19' } })
     const json = await res.json().catch(() => ({}))
     const results = json?.query?.search || []
     if (!results.length) {
       return ctx.api.editMessageText(ctx.chat.id, status.message_id, `Sin resultados en Wikipedia para ${q}`)
     }
-    let replyText = `Wikipedia\n> ${q}\n\n`
-    for (const r of results.slice(0, 5)) {
-      const snippet = String(r.snippet || '').replace(/<[^>]+>/g, '')
-      replyText += `• ${r.title}\n${snippet}\n\n`
+
+    const best = results[0]
+    const extractUrl =
+      `https://es.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=0&explaintext=1` +
+      `&redirects=1&format=json&titles=${encodeURIComponent(best.title)}`
+    const res2 = await fetch(extractUrl, { headers: { 'User-Agent': 'Luffy7-Telegram/1.5.19' } })
+    const json2 = await res2.json().catch(() => ({}))
+    const pages = json2?.query?.pages || {}
+    const page = Object.values(pages)[0] || {}
+    const title = page.title || best.title
+    let extract = String(page.extract || '').trim()
+    if (!extract) extract = String(best.snippet || '').replace(/<[^>]+>/g, '')
+    if (extract.length > 2800) extract = extract.slice(0, 2800).trim() + '…'
+    const link = `https://es.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+
+    let mainMsg =
+      `Wikipedia\n> ${q}\n\n` +
+      `${title}\n\n` +
+      `${extract || '(sin extracto)'}\n\n` +
+      `Articulo completo:\n${link}`
+    await ctx.api.editMessageText(ctx.chat.id, status.message_id, mainMsg.slice(0, 3900))
+
+    if (results.length > 1) {
+      let more = `Otras coincidencias\n\n`
+      for (const r of results.slice(1, 5)) {
+        const snippet = String(r.snippet || '').replace(/<[^>]+>/g, '')
+        const rlink = `https://es.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, '_'))}`
+        more += `• ${r.title}\n${snippet}\n${rlink}\n\n`
+      }
+      await ctx.reply(more.trim().slice(0, 3900))
     }
-    await ctx.api.editMessageText(ctx.chat.id, status.message_id, replyText.trim().slice(0, 3500))
   } catch (e) {
     await ctx.api.editMessageText(ctx.chat.id, status.message_id, 'Error: ' + errText(e)).catch(() => {})
   }

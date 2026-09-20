@@ -1,8 +1,8 @@
 {
   "name": "luffy7-telegram",
-  "version": "1.5.18",
+  "version": "1.5.19",
   "private": false,
-  "description": "Luffy7 Telegram v1.5.18: economia, gacha, anime, busqueda, IA, descargas, grupo, cloud",
+  "description": "Luffy7 Telegram v1.5.19: wiki resumen+link, economia, gacha, anime, busqueda, IA, descargas HD, cloud",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

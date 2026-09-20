@@ -4,6 +4,11 @@
 El deploy en la nube usa el repo **[bbboy](https://github.com/BerNardo77-bot/bbboy)**, no este.
 Guia: [CLOUD.md](CLOUD.md)
 
+## v1.5.19
+- `/wiki`: resumen del artículo + enlace completo (como WhatsApp Andrewmisses)
+- Versión alineada en **bbboy** y **Luffy7-Telegram**
+
+
 ## v1.5.18
 - Nube: Dockerfile (ffmpeg + yt-dlp), HTTP health si hay PORT, guia [CLOUD.md](CLOUD.md) para Railway/Render
 
