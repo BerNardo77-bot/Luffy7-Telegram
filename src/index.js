@@ -762,7 +762,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.18 arrancando...')
+console.log('Luffy7 Telegram v1.5.19 arrancando...')
 
 async function goOnline() {
   try {
