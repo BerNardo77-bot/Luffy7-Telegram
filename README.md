@@ -4,6 +4,10 @@
 El deploy en la nube usa el repo **[bbboy](https://github.com/BerNardo77-bot/bbboy)**, no este.
 Guia: [CLOUD.md](CLOUD.md)
 
+## v1.5.20
+- `/x` `/twitter` `/xdownloader` (alias `/xdl` `/tw`): videos, GIFs e imágenes de X/Twitter (x.com, twitter.com, fxtwitter, vxtwitter, mobile). FxTwitter → VxTwitter → yt-dlp (si está instalado). Si pesa >50 MB manda el enlace directo.
+
+
 ## v1.5.19
 - `/wiki`: resumen del artículo + enlace completo (como WhatsApp Andrewmisses)
 - Versión alineada en **bbboy** y **Luffy7-Telegram**
@@ -59,6 +63,7 @@ Version **1.3.0** — descargas a disco hasta 2GB. Envio Telegram cloud ~50MB co
 | `/tiktokmp3` | `/ttmp3` | Audio TikTok |
 | `/ig` | `/instagram` | Instagram |
 | `/fb` | `/facebook` | Facebook |
+| `/x` | `/twitter` `/xdownloader` `/xdl` `/tw` | X/Twitter (video / imágenes) |
 | `/spotify` | `/sp` | Spotify |
 | `/mediafire` | `/mf` | MediaFire |
 | `/dl` | `/get` | Link directo |
@@ -105,6 +110,7 @@ Tambien necesitas `ffmpeg` para la compresion >50MB.
       commands/
         stickers.js
         downloads.js     # tiktok ig fb spotify mf
+        x.js             # X/Twitter (fxtwitter / vxtwitter / yt-dlp)
         info.js          # ping menu help
         translate.js
         nsfw.js

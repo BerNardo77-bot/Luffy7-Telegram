@@ -2,7 +2,7 @@
 
 Bot: @LuffyYampiBot
 Repo: https://github.com/BerNardo77-bot/Luffy7-Telegram
-Version: 1.5.17
+Version: 1.5.20
 
 Usa Termux de F-Droid, no el de Play Store.
 Cada bloque es un comando. Copialo, pegalo y da Enter. Espera a que termine antes del siguiente.
@@ -79,7 +79,7 @@ cd ~/Luffy7-Telegram
 node -p "require('./package.json').version"
 ```
 
-Debe salir: 1.5.17
+Debe salir: 1.5.20
 
 ---
 
@@ -142,7 +142,7 @@ npm start
 
 En el log debe salir:
 
-Luffy7 Telegram v1.5.17 arrancando...
+Luffy7 Telegram v1.5.20 arrancando...
 Polling activo
 Luffy7 Telegram online como @LuffyYampiBot
 
@@ -188,7 +188,7 @@ git reset --hard origin/main
 node -p "require('./package.json').version"
 ```
 
-Debe salir 1.5.17
+Debe salir 1.5.20
 
 ```
 npm start

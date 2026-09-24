@@ -23,6 +23,7 @@ import { handleSticker, handlePhotoCaption } from './commands/stickers.js'
 import { handleHelp, handlePing } from './commands/info.js'
 import { handleTranslate } from './commands/translate.js'
 import { createDownloadHandlers } from './commands/downloads.js'
+import { createXHandler } from './commands/x.js'
 import {
   handleDanbooru,
   handleGelbooru,
@@ -625,6 +626,7 @@ async function handleVideoHd(ctx) {
 }
 
 const handleXnxx = createXnxxHandler(sendOrCompress)
+const handleX = createXHandler(sendOrCompress, { maxSend: MAX_SEND })
 
 bot.command(['start', 'help', 'menu'], handleHelp)
 bot.command(['ping', 'p'], handlePing)
@@ -652,6 +654,7 @@ bot.command(['ig', 'instagram', 'reel'], handleInstagram)
 bot.command(['fb', 'facebook'], handleFacebook)
 bot.command(['spotify', 'sp'], handleSpotify)
 bot.command(['mediafire', 'mf'], handleMediafire)
+bot.command(['x', 'twitter', 'xdownloader', 'xdl', 'tw'], handleX)
 
 bot.command(['danbooru', 'dbooru'], handleDanbooru)
 bot.command(['gelbooru', 'gbooru'], handleGelbooru)
@@ -762,7 +765,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.19 arrancando...')
+console.log('Luffy7 Telegram v1.5.20 arrancando...')
 
 async function goOnline() {
   try {
@@ -780,7 +783,7 @@ async function goOnline() {
     'MB | localApi=',
     useLocalApi
   )
-  console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify ...')
+  console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify /x ...')
   console.log('Si mandas /start y no responde, otro proceso usa el mismo token.')
   const keepAlive = setInterval(() => {
     console.log('[vivo]', new Date().toISOString(), 'esperando mensajes...')
