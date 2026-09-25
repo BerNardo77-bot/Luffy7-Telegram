@@ -12,7 +12,8 @@ import { tmpPath, safeUnlink } from '../api.js'
 // y docs.google.com/document|spreadsheets|presentation/d/<id> (exporta a pdf / xlsx / pptx).
 // Mantiene el resourcekey (archivos viejos 0B... lo necesitan).
 // También acepta links DIRECTOS a PDF (cualquier http/https que entregue un PDF).
-// Scribd / Studocu / etc. exigen cuenta o suscripción: solo se avisa, no se descarga.
+// Si el link es una PÁGINA WEB (artículo, guía), extrae el contenido y lo convierte a PDF (src/webpdf.js).
+// Scribd / Studocu / etc. exigen cuenta o suscripción: solo se avisa, no se descarga ni se convierte.
 
 // Bot API en la nube: sendDocument multipart tope 50 MB -> 49 MB por seguridad.
 // index.js pasa MAX_SEND (MAX_SEND_BYTES o API local si TELEGRAM_API_ROOT).
@@ -20,7 +21,9 @@ const MAX_SEND = 49 * 1024 * 1024
 const TIMEOUT = 30000
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+const WEBPDF_PATH = new URL('../webpdf.js', import.meta.url).href
+const WEBPDF_TMP = () => tmpPath(`webpdf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`)
 
 const MIME = {
   pdf: 'application/pdf',
@@ -296,23 +299,36 @@ async function assertPublicHost(u) {
   if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) throw new Error('Ese link apunta a una dirección interna.')
 }
 
-// fetch siguiendo redirecciones a mano (máx. 6) y validando cada destino.
-// Algunos CDN (Cloudflare) rechazan con 403 un UA de navegador que no es navegador;
-// en ese caso se reintenta con un UA simple.
-const UA_PLAIN = 'Mozilla/5.0 (compatible; PDF-Downloader/1.0)'
-const UA_FALLBACK = 'curl/8.5.0'
+// fetch siguiendo redirecciones a mano (máx. 6) y validando cada destino (bloquea localhost/IPs privadas
+// también en las redirecciones). Headers de navegador real: muchos sitios (Cloudflare, WordPress con WAF)
+// rechazan peticiones sin User-Agent/Accept/Accept-Language/Referer de navegador.
+const UA_ALT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0'
+const UA_FALLBACK = 'curl/8.5.0' // último recurso solo ante 403 (algunos CDN rechazan UAs de navegador "falsos")
+const MAX_HTML = 5 * 1024 * 1024 // tope al leer una página web para convertirla
+
+export function browserHeaders(url, ua = UA, extra = {}) {
+  let referer
+  try { referer = `${new URL(url).origin}/` } catch {}
+  return {
+    'User-Agent': ua,
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+    ...(referer ? { Referer: referer } : {}),
+    'Upgrade-Insecure-Requests': '1',
+    ...extra
+  }
+}
 
 async function reqDirect(url, { method = 'GET', headers = {}, timeout = TIMEOUT, ua = UA } = {}) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeout)
-  const h = { 'User-Agent': ua, Accept: 'application/pdf,*/*;q=0.8', 'Accept-Language': 'es-419,es;q=0.9', ...headers }
   let cur = url
   try {
     for (let hop = 0; hop <= 6; hop++) {
       const u = new URL(cur)
       if (!/^https?:$/.test(u.protocol)) throw new Error('Redirección no soportada.')
       await assertPublicHost(u)
-      const res = await fetch(cur, { method, headers: h, redirect: 'manual', signal: ctrl.signal })
+      const res = await fetch(cur, { method, headers: browserHeaders(cur, ua, headers), redirect: 'manual', signal: ctrl.signal })
       const loc = res.headers.get('location')
       if (res.status >= 300 && res.status < 400 && loc) {
         try { res.body?.resume?.() } catch {}
@@ -328,23 +344,40 @@ async function reqDirect(url, { method = 'GET', headers = {}, timeout = TIMEOUT,
   }
 }
 
-// Lee como mucho `n` bytes del cuerpo y corta la conexión.
-async function readHead(res, ctrl, n = 2048) {
+// Lee los primeros `n` bytes; si `more(head)` dice que sí, sigue leyendo hasta `max` bytes.
+// Siempre corta la conexión al final.
+async function readBody(res, ctrl, { n = 2048, max = MAX_HTML, more = () => false } = {}) {
   const chunks = []
   let got = 0
+  let head = Buffer.alloc(0)
+  let full = false
   try {
-    for await (const c of res.body) {
-      chunks.push(c)
-      got += c.length
-      if (got >= n) break
+    const it = res.body[Symbol.asyncIterator]()
+    while (got < n) {
+      const { value, done } = await it.next()
+      if (done) { full = true; break }
+      chunks.push(Buffer.from(value))
+      got += value.length
     }
-  } catch {}
+    head = Buffer.concat(chunks).subarray(0, n)
+    if (!full && more(head)) {
+      while (got < max) {
+        const { value, done } = await it.next()
+        if (done) { full = true; break }
+        chunks.push(Buffer.from(value))
+        got += value.length
+      }
+    }
+  } catch (e) {
+    if (!chunks.length) throw e
+  }
   try { res.body?.on?.('error', () => {}); ctrl.abort() } catch {}
-  return Buffer.concat(chunks).subarray(0, n)
+  if (!head.length) head = Buffer.concat(chunks).subarray(0, n)
+  return { head, body: Buffer.concat(chunks).subarray(0, max), full }
 }
 
 const looksPdf = (buf) => buf.subarray(0, 1024).includes('%PDF')
-const looksHtml = (buf) => /^\s*(<!doctype html|<html|<head|<body|<\?xml[^>]*>\s*<(!doctype )?html)/i.test(buf.toString('utf8', 0, 512).replace(/^\uFEFF/, ''))
+const looksHtml = (buf) => /^\s*(<!doctype html|<html|<head|<body|<\?xml[^>]*>\s*<(!doctype )?html|<!--[\s\S]*?-->\s*<(!doctype html|html))/i.test(buf.toString('utf8', 0, 1024).replace(/^\uFEFF/, ''))
 
 export function pdfFileName(cd, finalUrl, origUrl) {
   let name = parseDisposition(cd)
@@ -363,13 +396,25 @@ export function pdfFileName(cd, finalUrl, origUrl) {
   return name
 }
 
-// HEAD + GET parcial: decide si el link entrega un PDF, sin bajarlo entero.
+export const blockedMessage = (status) =>
+  status
+    ? `El sitio bloqueó la descarga o está caído (HTTP ${status}). Intenta más tarde o manda el link directo del PDF.`
+    : 'El sitio no respondió (está caído o bloqueó la descarga). Intenta más tarde o manda el link directo del PDF.'
+
+// HEAD (si falla, GET) + GET: decide si el link entrega un PDF o una página web.
+// Ante 5xx/403/429 o error de red reintenta una vez con otro User-Agent.
 export async function probeDirect(link) {
-  for (const ua of [UA, UA_PLAIN, UA_FALLBACK]) {
+  let last = null
+  for (const ua of [UA, UA_ALT]) {
     const r = await probeDirectWith(link, ua)
     if (!r.retry) return r
+    last = r
   }
-  return { ok: false, error: 'El servidor negó el acceso (HTTP 403); puede requerir inicio de sesión.' }
+  if (last?.status === 403 || last?.status === 429) {
+    const r = await probeDirectWith(link, UA_FALLBACK)
+    if (!r.retry) return r
+  }
+  return { ok: false, blocked: true, status: last?.status || 0, error: blockedMessage(last?.status || 0) }
 }
 
 async function probeDirectWith(link, ua) {
@@ -384,40 +429,47 @@ async function probeDirectWith(link, ua) {
         headCd = res.headers.get('content-disposition') || ''
         headSize = Number(res.headers.get('content-length')) || 0
       }
+      // 4xx/5xx/405 en HEAD: no se confía, se sigue con GET
       try { ctrl.abort() } catch {}
     } finally { done() }
   } catch (e) {
-    if (/interna|resolver/.test(e?.message || '')) return { ok: false, error: e.message }
+    if (/interna|resolver|Redirección|redirecciones/.test(e?.message || '')) return { ok: false, error: e.message }
     // muchos servidores no aceptan HEAD: se sigue con GET
   }
 
-  const { res, finalUrl, done, ctrl } = await reqDirect(link, { headers: { Range: 'bytes=0-2047' }, ua })
+  let r
+  try {
+    r = await reqDirect(link, { ua })
+  } catch (e) {
+    if (/interna|resolver|Redirección|redirecciones/.test(e?.message || '')) return { ok: false, error: e.message }
+    return { retry: true, status: 0, error: e?.message }
+  }
+  const { res, finalUrl, done, ctrl } = r
   try {
     if (!res.ok) {
-      try { ctrl.abort() } catch {}
-      if ([403, 429, 503].includes(res.status) && ua !== UA_FALLBACK) return { retry: true }
-      const why = res.status === 404 ? 'El archivo no existe (HTTP 404).'
-        : res.status === 401 || res.status === 403 ? `El servidor negó el acceso (HTTP ${res.status}); puede requerir inicio de sesión.`
+      try { res.body?.on?.('error', () => {}); ctrl.abort() } catch {}
+      if (res.status >= 500 || res.status === 403 || res.status === 429) return { retry: true, status: res.status }
+      const why = res.status === 404 ? 'El archivo o la página no existe (HTTP 404).'
+        : res.status === 401 ? 'El sitio pide iniciar sesión (HTTP 401).'
           : `El servidor respondió HTTP ${res.status}.`
       return { ok: false, error: why }
     }
     const ctype = res.headers.get('content-type') || headType
     const cd = res.headers.get('content-disposition') || headCd
-    const range = res.headers.get('content-range') || ''
-    let size = Number((range.match(/\/(\d+)\s*$/) || [])[1])
-    if (!Number.isFinite(size) || size <= 0) {
-      const cl = Number(res.headers.get('content-length'))
-      size = res.status === 200 && cl > 0 ? cl : headSize
-    }
-    const head = await readHead(res, ctrl)
-    const pathPdf = (() => { try { return /\.pdf$/i.test(new URL(finalUrl).pathname) } catch { return false } })()
+    const cl = Number(res.headers.get('content-length'))
+    const size = cl > 0 ? cl : headSize
     const ctPdf = /application\/(x-)?pdf/i.test(ctype)
     const ctHtml = /text\/html|application\/xhtml/i.test(ctype)
+    const { head, body } = await readBody(res, ctrl, { more: (h) => !looksPdf(h) && (looksHtml(h) || (ctHtml && !ctPdf)) })
+    const pathPdf = (() => { try { return /\.pdf$/i.test(new URL(finalUrl).pathname) } catch { return false } })()
     let isPdf
     if (looksPdf(head)) isPdf = true
     else if (looksHtml(head) || ctHtml) isPdf = false
     else isPdf = ctPdf || pathPdf
-    if (!isPdf) return { ok: false, notPdf: true, html: ctHtml || looksHtml(head), ctype: ctype.split(';')[0].trim() }
+    if (!isPdf) {
+      const html = ctHtml || looksHtml(head)
+      return { ok: false, notPdf: true, html, body: html ? body : null, finalUrl, ctype: ctype.split(';')[0].trim(), rawCtype: ctype }
+    }
     return { ok: true, url: finalUrl, name: pdfFileName(cd, finalUrl, link), size: size || 0, mimetype: 'application/pdf', ua }
   } finally {
     done()
@@ -428,7 +480,7 @@ export async function downloadDirectToFile(url, max = MAX_SEND, ua = UA) {
   const file = tmpPath(`pdfdl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)
   const { res, done, ctrl } = await reqDirect(url, { timeout: 10 * 60 * 1000, ua })
   try {
-    if (!res.ok) throw new Error(`El servidor respondió HTTP ${res.status}.`)
+    if (!res.ok) throw new Error(res.status >= 500 || res.status === 403 ? blockedMessage(res.status) : `El servidor respondió HTTP ${res.status}.`)
     let got = 0
     let tooBig = false
     const limiter = new Transform({
@@ -459,21 +511,65 @@ export async function downloadDirectToFile(url, max = MAX_SEND, ua = UA) {
   }
 }
 
+// ── Página web → PDF ───────────────────────────────────────────────
+let webpdfMod = null
+async function loadWebPdf() {
+  if (webpdfMod) return webpdfMod
+  try {
+    webpdfMod = await import(WEBPDF_PATH)
+    return webpdfMod
+  } catch (e) {
+    console.error('[pdf] webpdf', e?.message || e)
+    const err = new Error(/Cannot find (package|module)|ERR_MODULE_NOT_FOUND/i.test(`${e?.code} ${e?.message}`)
+      ? 'Faltan dependencias para convertir páginas web. En la terminal del bot ejecuta: npm install'
+      : 'No se pudo cargar el convertidor de páginas web.')
+    err.userFacing = true
+    throw err
+  }
+}
+
+// Convierte el HTML ya descargado en un PDF temporal.
+// Devuelve { ok: true, file, fileName, title, size } o { ok: false, error }.
+export async function webPageToPdf(meta, max = MAX_SEND) {
+  const { decodeHtml, isChallengePage, htmlToPdfFile } = await loadWebPdf()
+  const html = decodeHtml(meta.body || Buffer.alloc(0), meta.rawCtype || meta.ctype)
+  if (isChallengePage(html)) return { ok: false, error: 'El sitio bloqueó la descarga (protección anti-bots). Intenta más tarde o manda el link directo del PDF.' }
+  const file = WEBPDF_TMP()
+  let r
+  try {
+    r = await htmlToPdfFile(html, meta.finalUrl, file)
+  } catch (e) {
+    try { fs.unlinkSync(file) } catch {}
+    throw e
+  }
+  if (!r) {
+    try { fs.unlinkSync(file) } catch {}
+    return { ok: false, error: 'No pude convertir esta página a PDF: no encontré un artículo legible (la página está vacía o tiene muy poco texto).' }
+  }
+  if (r.size > max) {
+    try { fs.unlinkSync(file) } catch {}
+    return { ok: false, tooBig: true, error: `El PDF generado pesa ${formatBytes(r.size)}: es demasiado grande para enviarlo.` }
+  }
+  return { ok: true, file, fileName: r.fileName, title: r.title, size: r.size }
+}
+
 const mbTxt = (n) => `${Math.round(n / 1024 / 1024)} MB`
 
 const NOT_PDF_MSG = (link, what) =>
-  `✖️ Ese link no es un PDF directo${what ? ` (${what})` : ''}.\n\n` +
-  `Envía un link de Google Drive/Docs o un link que abra/descargue el PDF directamente, por ejemplo:\n` +
+  `✖️ Ese link no es un PDF ni una página web${what ? ` (${what})` : ''}.\n\n` +
+  `Envía un link de Google Drive/Docs, un link directo al PDF o el link de un artículo, por ejemplo:\n` +
   `/pdf https://drive.google.com/file/d/XXXXXXXX/view\n` +
   `/pdf https://sitio.com/archivo.pdf\n\n` +
   `Link: ${link}`
 
 const USAGE =
   '📄 PDF / GOOGLE DRIVE\n\n' +
-  'Uso: /pdf <link de Google Drive/Docs o link directo a un PDF>\n' +
+  'Uso: /pdf <link de Google Drive/Docs, link directo a un PDF o página web>\n' +
   'Ejemplos:\n' +
   '/pdf https://drive.google.com/file/d/XXXXXXXX/view\n' +
-  '/pdf https://sitio.com/archivo.pdf\n\n' +
+  '/pdf https://sitio.com/archivo.pdf\n' +
+  '/pdf https://sitio.com/articulo-o-guia\n\n' +
+  '• Si mandas una página web (artículo, guía), la convierto a PDF con su texto.\n' +
   '• También: /gdrive · /drive · /gd · /googledrive\n' +
   '• En Drive el archivo debe estar compartido como "Cualquier persona con el enlace".\n' +
   '• Scribd, Studocu y similares exigen cuenta: no se pueden descargar.'
@@ -541,17 +637,40 @@ async function deliver(ctx, st, { caption, name, size, link, maxSend, download }
 export function createPdfHandler({ maxSend = MAX_SEND } = {}) {
   const cap = Number(maxSend) > 0 ? Number(maxSend) : MAX_SEND
 
+  async function sendWebPdf(ctx, st, meta, link) {
+    const site = paywallSite(meta.finalUrl)
+    if (site) return st.say(paywallMessage(site, link))
+    await st.progress('📰 Es una página web: convirtiéndola a PDF...')
+    let conv
+    try {
+      conv = await webPageToPdf(meta, cap)
+    } catch (e) {
+      console.error('[pdf] web', e?.message || e)
+      return st.say(`✖️ ${e?.userFacing ? e.message : 'No pude convertir esta página a PDF.'}\n\nLink: ${link}`)
+    }
+    if (!conv.ok) return st.say(`✖️ ${conv.error}\n\nLink: ${link}`)
+    try {
+      const caption = `📄 ${conv.title}\n\nPágina web convertida a PDF\nTamaño: ${formatBytes(conv.size)}\nFuente: ${link}`
+      await st.progress('📤 Enviando documento...')
+      await ctx.replyWithDocument(new InputFile(conv.file, conv.fileName), { caption: caption.slice(0, 1024) })
+      await st.clear()
+    } finally {
+      safeUnlink(conv.file)
+    }
+  }
+
   async function handleDirect(ctx, st, url) {
     const link = url.href
     await st.start('🔍 Revisando el link...')
     try {
       const meta = await probeDirect(link)
       if (!meta.ok) {
-        if (meta.notPdf) {
-          return st.say(NOT_PDF_MSG(link, meta.html ? 'es una página web' : meta.ctype ? `tipo: ${meta.ctype}` : ''))
-        }
+        if (meta.notPdf && meta.html) return sendWebPdf(ctx, st, meta, link)
+        if (meta.notPdf) return st.say(NOT_PDF_MSG(link, meta.ctype ? `tipo: ${meta.ctype}` : ''))
         return st.say(`✖️ ${meta.error}\n\nLink: ${link}`)
       }
+      const site = paywallSite(meta.url)
+      if (site) return st.say(paywallMessage(site, link))
       const caption = `📄 PDF\n\nNombre: ${meta.name}\nTamaño: ${formatBytes(meta.size)}\nLink: ${link}`
       await deliver(ctx, st, {
         caption,
@@ -580,7 +699,7 @@ export function createPdfHandler({ maxSend = MAX_SEND } = {}) {
       const url = extractUrl(text)
       if (!url) {
         return ctx.reply(
-          '✖️ Link inválido. Envía un enlace de Google Drive/Docs o un link directo a un PDF.\n' +
+          '✖️ Link inválido. Envía un enlace de Google Drive/Docs, un link directo a un PDF o el link de una página web.\n' +
             'Ejemplo: /pdf https://drive.google.com/file/d/XXXXXXXX/view'
         )
       }

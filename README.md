@@ -4,6 +4,12 @@
 El deploy en la nube usa el repo **[bbboy](https://github.com/BerNardo77-bot/bbboy)**, no este.
 Guia: [CLOUD.md](CLOUD.md)
 
+## v1.5.22
+- `/pdf` ahora convierte **páginas web** (artículos, guías) a PDF: extrae el contenido principal con `@mozilla/readability` + `linkedom` y arma el PDF con `pdfkit` (JS puro, sin Chromium: funciona en Termux). Incluye título, fuente, fecha, encabezados, párrafos, listas y bloques de código en monoespaciado; se envía como documento `titulo-slug.pdf` (mismo tope `MAX_SEND`). Si no hay artículo legible, avisa.
+- Peticiones con headers de navegador real (Chrome UA, Accept, Accept-Language es-MX, Referer). Si HEAD falla se usa GET; ante 5xx/403 reintenta con otro User-Agent; si sigue fallando: "El sitio bloqueó la descarga o está caído (HTTP xxx)".
+- Se mantiene: Drive público, PDF directo, aviso de Scribd/Studocu/SlideShare (no se descargan ni se convierten) y bloqueo de localhost/IPs privadas (también en redirecciones).
+- **Requiere `npm install`** al actualizar (dependencias nuevas).
+
 ## v1.5.21
 - `/google` (alias `/gg` `/buscar` `/googlesearch`): búsqueda web sin API key, top 5 (título, resumen y link). DuckDuckGo → DuckDuckGo Lite → Bing (filtra irrelevantes) → Wikipedia (es) → Marginalia. Ej: `/google algebra de baldor`.
 - `/pdf` (alias `/gdrive` `/drive` `/gd` `/googledrive`): archivos públicos de Google Drive (incluye `resourcekey` y Docs/Sheets/Slides → PDF/XLSX/PPTX) y links directos a PDF, enviados como documento. Tope 49 MB (límite de Telegram); si pesa más → nombre, tamaño y link. Scribd/Studocu/SlideShare y similares: solo aviso y sugerencia de `/google` (no se descargan). Bloquea links a localhost/IPs privadas.
