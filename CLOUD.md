@@ -1,6 +1,6 @@
 # Luffy7 Telegram en la nube (Railway o Render)
 
-Version: 1.5.20
+Version: 1.5.21
 Repo nube: https://github.com/BerNardo77-bot/bbboy
 Codigo fuente (Termux): https://github.com/BerNardo77-bot/Luffy7-Telegram
 Bot Termux: @LuffyYampiBot
@@ -46,7 +46,7 @@ No cierres el bot de WhatsApp si esta en el mismo celular; mata solo Node del de
 8. Deploy / Redeploy si no arranco solo.
 9. Abre Logs. Debe salir:
 
-Luffy7 Telegram v1.5.20 arrancando...
+Luffy7 Telegram v1.5.21 arrancando...
 Luffy7 Telegram online como @LuffyYampiBot
 Polling activo
 

@@ -8,7 +8,7 @@ function uptimeStr() {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
 
-export const helpText = `⚓ Luffy7 Telegram v1.5.20
+export const helpText = `⚓ Luffy7 Telegram v1.5.21
 
 Descargas a disco hasta ~2GB.
 Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
@@ -23,6 +23,7 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /x /twitter /xdl /tw /xdownloader — X/Twitter video e imágenes
 /spotify /sp — Spotify
 /mediafire /mf — MediaFire
+/pdf /gdrive /drive /gd — Google Drive público o link directo a PDF (>49 MB solo link)
 /dl /get — link directo .mp4/.mp3
 /xvideos /xv — XVideos HD
 /xnxx — XNXX HD
@@ -89,6 +90,7 @@ Todas en alta calidad. Si pesa >50MB, comprime para Telegram.
 /nano /nanobanana — editar foto con prompt (o generar desde texto)
 
 🔍 Busqueda
+/google /gg /buscar — búsqueda web (top 5 con link)
 /wiki /wikipedia — Wikipedia
 /imagen /img /image — imagen (Google + Pinterest)
 /pin /pinterest — Pinterest (tema o link)

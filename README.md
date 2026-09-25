@@ -4,6 +4,11 @@
 El deploy en la nube usa el repo **[bbboy](https://github.com/BerNardo77-bot/bbboy)**, no este.
 Guia: [CLOUD.md](CLOUD.md)
 
+## v1.5.21
+- `/google` (alias `/gg` `/buscar` `/googlesearch`): búsqueda web sin API key, top 5 (título, resumen y link). DuckDuckGo → DuckDuckGo Lite → Bing (filtra irrelevantes) → Wikipedia (es) → Marginalia. Ej: `/google algebra de baldor`.
+- `/pdf` (alias `/gdrive` `/drive` `/gd` `/googledrive`): archivos públicos de Google Drive (incluye `resourcekey` y Docs/Sheets/Slides → PDF/XLSX/PPTX) y links directos a PDF, enviados como documento. Tope 49 MB (límite de Telegram); si pesa más → nombre, tamaño y link. Scribd/Studocu/SlideShare y similares: solo aviso y sugerencia de `/google` (no se descargan). Bloquea links a localhost/IPs privadas.
+
+
 ## v1.5.20
 - `/x` `/twitter` `/xdownloader` (alias `/xdl` `/tw`): videos, GIFs e imágenes de X/Twitter (x.com, twitter.com, fxtwitter, vxtwitter, mobile). FxTwitter → VxTwitter → yt-dlp (si está instalado). Si pesa >50 MB manda el enlace directo.
 

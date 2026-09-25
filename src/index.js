@@ -23,6 +23,8 @@ import { handleSticker, handlePhotoCaption } from './commands/stickers.js'
 import { handleHelp, handlePing } from './commands/info.js'
 import { handleTranslate } from './commands/translate.js'
 import { createDownloadHandlers } from './commands/downloads.js'
+import { handleGoogle, GOOGLE_COMMANDS } from './commands/google.js'
+import { createPdfHandler, PDF_COMMANDS } from './commands/gdrive.js'
 import { createXHandler } from './commands/x.js'
 import {
   handleDanbooru,
@@ -626,6 +628,7 @@ async function handleVideoHd(ctx) {
 }
 
 const handleXnxx = createXnxxHandler(sendOrCompress)
+const handlePdf = createPdfHandler({ maxSend: MAX_SEND })
 const handleX = createXHandler(sendOrCompress, { maxSend: MAX_SEND })
 
 bot.command(['start', 'help', 'menu'], handleHelp)
@@ -654,6 +657,7 @@ bot.command(['ig', 'instagram', 'reel'], handleInstagram)
 bot.command(['fb', 'facebook'], handleFacebook)
 bot.command(['spotify', 'sp'], handleSpotify)
 bot.command(['mediafire', 'mf'], handleMediafire)
+bot.command(PDF_COMMANDS, handlePdf)
 bot.command(['x', 'twitter', 'xdownloader', 'xdl', 'tw'], handleX)
 
 bot.command(['danbooru', 'dbooru'], handleDanbooru)
@@ -722,6 +726,7 @@ bot.command(['deepseek', 'ds'], handleDeepseek)
 bot.command(['grok'], handleGrok)
 bot.command(['nano', 'nanobanana'], handleNano)
 bot.command(['wiki', 'wikipedia'], handleWiki)
+bot.command(GOOGLE_COMMANDS, handleGoogle)
 bot.command(['imagen', 'img', 'image'], handleImagen)
 bot.command(['pinterest', 'pin'], handlePin)
 bot.command(['ytsearch', 'search', 'yts'], handleYtSearch)
@@ -765,7 +770,7 @@ bot.command(['eval', 'e', 'restart', 'fix', 'update', 'bots', 'sockets', 'leave'
 
 bot.catch((err) => console.error('Bot error', err?.error || err?.message || err, err?.ctx?.message?.text || ''))
 
-console.log('Luffy7 Telegram v1.5.20 arrancando...')
+console.log('Luffy7 Telegram v1.5.21 arrancando...')
 
 async function goOnline() {
   try {
@@ -783,7 +788,7 @@ async function goOnline() {
     'MB | localApi=',
     useLocalApi
   )
-  console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify /x ...')
+  console.log('Comandos: /menu /sticker /play /tiktok /ig /fb /spotify /x /google /pdf ...')
   console.log('Si mandas /start y no responde, otro proceso usa el mismo token.')
   const keepAlive = setInterval(() => {
     console.log('[vivo]', new Date().toISOString(), 'esperando mensajes...')
