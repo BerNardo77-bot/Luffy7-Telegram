@@ -4,6 +4,20 @@
 El deploy en la nube usa el repo **[bbboy](https://github.com/BerNardo77-bot/bbboy)**, no este.
 Guia: [CLOUD.md](CLOUD.md)
 
+## v1.5.23
+- `/google` busca en toda la web también desde servidores (Railway): nueva cadena con timeout corto (~7 s por motor, ~19 s máximo): APIs opcionales (`GOOGLE_CSE_KEY`+`GOOGLE_CSE_CX` o `BRAVE_API_KEY`, van primero si existen) → DuckDuckGo → Seznam → Mwmbl → Marginalia → Bing → Wikipedia. Captcha o página vacía = siguiente motor; sin duplicados; `Fuente:` muestra el motor que respondió.
+- Sin dependencias nuevas (no hace falta `npm install`).
+
+### Búsqueda web (`/google`) — variables opcionales
+
+Sin configurar nada, `/google` usa buscadores sin API key: DuckDuckGo → Seznam → Mwmbl → Marginalia → Bing → Wikipedia (en servidores DuckDuckGo y Bing suelen pedir captcha; se saltan solos). Si quieres resultados tipo Google/Brave desde el servidor, agrega **una** de estas (van primero cuando existen):
+
+| Variable | Valor |
+|---|---|
+| `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX` | API key y el ID del buscador de Google Programmable Search (Custom Search JSON API) |
+| `BRAVE_API_KEY` | Token de Brave Search API (https://brave.com/search/api/) |
+| `SEARCH_DISABLE` | (opcional) motores a desactivar, separados por coma: `duckduckgo,seznam,mwmbl,marginalia,bing` |
+
 ## v1.5.22
 - `/pdf` ahora convierte **páginas web** (artículos, guías) a PDF: extrae el contenido principal con `@mozilla/readability` + `linkedom` y arma el PDF con `pdfkit` (JS puro, sin Chromium: funciona en Termux). Incluye título, fuente, fecha, encabezados, párrafos, listas y bloques de código en monoespaciado; se envía como documento `titulo-slug.pdf` (mismo tope `MAX_SEND`). Si no hay artículo legible, avisa.
 - Peticiones con headers de navegador real (Chrome UA, Accept, Accept-Language es-MX, Referer). Si HEAD falla se usa GET; ante 5xx/403 reintenta con otro User-Agent; si sigue fallando: "El sitio bloqueó la descarga o está caído (HTTP xxx)".

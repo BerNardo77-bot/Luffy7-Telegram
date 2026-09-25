@@ -1,7 +1,7 @@
 # Luffy7 Telegram en Railway (bot nuevo, sin Termux)
 
 Repo: https://github.com/BerNardo77-bot/bbboy
-Version del codigo: 1.5.22
+Version del codigo: 1.5.23
 
 Esto crea un bot de Telegram NUEVO y lo deja 24/7 en Railway.
 @LuffyYampiBot en Termux puede seguir. Cada bot tiene su token.
@@ -72,6 +72,16 @@ Si sale Variable overwrite detected: Cancel. Esa variable ya existe.
 
 Deben verse 4 service variables (mas las que Railway pone solo).
 
+### Búsqueda web (`/google`) — variables opcionales
+
+Sin configurar nada, `/google` usa buscadores sin API key: DuckDuckGo → Seznam → Mwmbl → Marginalia → Bing → Wikipedia (en servidores DuckDuckGo y Bing suelen pedir captcha; se saltan solos). Si quieres resultados tipo Google/Brave desde el servidor, agrega **una** de estas (van primero cuando existen):
+
+| Variable | Valor |
+|---|---|
+| `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX` | API key y el ID del buscador de Google Programmable Search (Custom Search JSON API) |
+| `BRAVE_API_KEY` | Token de Brave Search API (https://brave.com/search/api/) |
+| `SEARCH_DISABLE` | (opcional) motores a desactivar, separados por coma: `duckduckgo,seznam,mwmbl,marginalia,bing` |
+
 ---
 
 ## 5. Aplicar y arrancar
@@ -82,7 +92,7 @@ Deben verse 4 service variables (mas las que Railway pone solo).
 4. Deployments → ultimo deploy → Logs.
 5. Debe decir:
 
-Luffy7 Telegram v1.5.22 arrancando...
+Luffy7 Telegram v1.5.23 arrancando...
 Luffy7 Telegram online como @TuBotNuevo
 Polling activo
 
